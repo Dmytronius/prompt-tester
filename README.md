@@ -3,6 +3,7 @@ PromptTester is a portable, BYOK (Bring Your Own Key), single-file HTML app for 
 
 ## Features
 - **Single File:** Runs entirely from one HTML file in the browser for maximum portability. Thanks for OpenAI and Gemini for no CORS restrictions.
+- **BYOK:** Your API keys are stored in browser's local storage. Never shared with anyone.
 - **Multi-LLM Provider Support:** Supports OpenAI (Completions and Requests) and Gemini APIs. Easy to add more LLM providers.
 - **Raw Payloads:** Parses raw OpenAI and Gemini payloads, automatically extracts the prompt and the messages.
 - **Nunjucks Templates:** Dynamic templating across LLM requests, prompts, and messages.
