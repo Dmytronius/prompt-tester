@@ -1,0 +1,3272 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <title>Prompt Tester</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css">
+
+  <style>
+    :root {
+      color-scheme: light dark;
+      font-family: "Segoe UI", Arial, sans-serif;
+      background: #f5f5f5;
+      color: #222;
+    }
+
+    body {
+      height: 100%;
+      margin: 0;
+      padding: 0;
+      background: #f5f5f5;
+      box-sizing: border-box;
+      overflow: hidden;
+      /* Prevent body scroll */
+    }
+
+    .app-container {
+      width: 95%;
+      margin: 0 auto;
+      padding: 0 1.5rem;
+      box-sizing: border-box;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+      /* Enable scrolling in children */
+      overflow: hidden;
+    }
+
+    header {
+      padding: 0;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 1rem;
+      background: #f5f5f5;
+      flex-shrink: 0;
+    }
+
+    header h1 {
+      margin: 0;
+      font-size: 1.6rem;
+      flex: none;
+    }
+
+    .header-controls {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 0.75rem;
+      justify-content: flex-end;
+      flex: 1 1 auto;
+    }
+
+    .app-version {
+      display: inline-flex;
+      align-items: center;
+      margin-left: -0.2rem;
+      font-size: 0.85rem;
+      color: #4a5668;
+      background: #e5ecf6;
+      border-radius: 999px;
+      padding: 0.1rem 0.5rem;
+      font-weight: 600;
+    }
+
+    .api-controls,
+    .header-controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.75rem 1.5rem;
+      align-items: center;
+    }
+
+    .api-controls label {
+      font-size: 0.95rem;
+    }
+
+    .header-controls button {
+      background: #0d6efd;
+    }
+
+    .header-controls button:hover {
+      background: #0a58ca;
+    }
+
+    #load-file-input {
+      display: none;
+    }
+
+    .api-key-input {
+      min-width: 0;
+      max-width: 100%;
+      padding: 0.45rem 0.6rem;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      font-size: 0.95rem;
+    }
+
+    /* ─── Tabs ─────────────────────────────────────────── */
+    .tab-bar {
+      display: flex;
+      gap: 0;
+      border-bottom: 2px solid #d0d0d0;
+      margin-bottom: 0;
+      z-index: 99;
+      background: #e9e9e9;
+      overflow-x: auto;
+      scrollbar-width: none;
+      -ms-overflow-style: none;
+      flex-shrink: 0;
+      border-radius: 8px 8px 0 0;
+    }
+
+    .tab-bar::-webkit-scrollbar {
+      display: none;
+      /* Hide scrollbar for Chrome/Safari/Opera */
+    }
+
+    .tab-btn {
+      position: relative;
+      background: none;
+      border: none;
+      border-radius: 6px 6px 0 0;
+      padding: 0.7rem 1.3rem;
+      font-size: 0.95rem;
+      font-weight: 600;
+      color: #555;
+      cursor: pointer;
+      transition: color 0.2s, background 0.2s;
+      white-space: nowrap;
+    }
+
+    .tab-btn:hover {
+      color: #1a73e8;
+      background: rgba(26, 115, 232, 0.06);
+    }
+
+    .tab-btn.active {
+      color: #1a73e8;
+      background: #fff;
+    }
+
+    .tab-btn.tab-btn-error {
+      color: #d9534f;
+    }
+
+    .tab-panel {
+      display: none;
+      border: 1px solid #d0d0d0;
+      border-top: none;
+      border-radius: 0 0 6px 6px;
+      background: #fff;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+      padding: 1rem 1.25rem 1.25rem;
+      overflow-y: auto;
+      flex: 1;
+    }
+
+    .tab-panel.active {
+      display: block;
+    }
+
+    /* Full-height layout for LLM Request & Developer Prompt tabs */
+    #tab-llm-request.active,
+    #tab-developer-prompt.active {
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      /* Prevent panel-level scrolling */
+    }
+
+    #tab-llm-request .section-body,
+    #tab-developer-prompt .section-body {
+      display: flex;
+      flex-direction: column;
+      flex: 1;
+      min-height: 0;
+    }
+
+    #tab-llm-request h3:first-child,
+
+    #llm-request-body-editor,
+    #developer-prompt-editor {
+      flex: 1;
+      height: auto !important;
+      resize: none;
+    }
+
+    /* ─── Section body (kept for inner content) ──────── */
+    .section-body {
+      padding: 0;
+    }
+
+    h3 {
+      margin-top: 1.2rem;
+      margin-bottom: 0.5rem;
+    }
+
+    textarea,
+    input[type="text"],
+    input[type="number"],
+    select {
+      width: 100%;
+      box-sizing: border-box;
+      font-size: 0.95rem;
+      padding: 0.5rem 0.6rem;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      background: #fff;
+    }
+
+    /* Template validation status styles */
+    h3.template-ok {
+      color: #146c2e;
+      /* green */
+    }
+
+    h3.template-error {
+      color: #b00020;
+      /* red */
+    }
+
+    .template-status {
+      margin-left: 0.6rem;
+      font-weight: 600;
+      font-size: 0.95rem;
+    }
+
+    .template-error-message {
+      margin-top: 0.35rem;
+      color: #b00020;
+      font-size: 0.9rem;
+      white-space: pre-wrap;
+    }
+
+    textarea {
+      min-height: 120px;
+      resize: vertical;
+      font-family: "Cascadia Code", "Courier New", monospace;
+    }
+
+    pre {
+      font-size: 0.9rem;
+      background: #f0f0f0;
+      padding: 0.75rem;
+      border-radius: 4px;
+      overflow-x: auto;
+    }
+
+    button {
+      cursor: pointer;
+      border: none;
+      border-radius: 4px;
+      background: #1a73e8;
+      color: #fff;
+      padding: 0.45rem 0.9rem;
+      font-size: 0.95rem;
+      transition: background 0.2s ease;
+    }
+
+    button:hover {
+      background: #145ec4;
+    }
+
+    button:disabled {
+      background: #b9c7e6;
+      cursor: wait;
+    }
+
+    .secondary {
+      background: #6c757d;
+    }
+
+    .secondary:hover {
+      background: #555d63;
+    }
+
+    .inline {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+    }
+
+    .flex-row {
+      display: flex;
+      gap: 1rem;
+      flex-wrap: wrap;
+    }
+
+    .flex-col {
+      flex: 1 1 320px;
+    }
+
+    .message-row {
+      display: grid;
+      grid-template-columns: 130px 1fr auto;
+      gap: 0.5rem;
+      align-items: start;
+      margin-bottom: 0.75rem;
+    }
+
+    .message-row textarea {
+      min-height: 55px;
+      height: 55px;
+    }
+
+    .variable-row {
+      display: flex;
+      flex-direction: column;
+      gap: 0.45rem;
+      margin-bottom: 0.75rem;
+    }
+
+    .variable-row-top {
+      display: flex;
+      gap: 0.5rem;
+      align-items: flex-start;
+      flex-wrap: wrap;
+    }
+
+    .message-row select {
+      width: 100%;
+    }
+
+    .variable-row input[type="text"] {
+      font-family: "Cascadia Code", "Courier New", monospace;
+      width: 100%;
+      min-width: 0;
+      flex: 1;
+    }
+
+    .variable-row select {
+      width: auto;
+      min-width: 85px;
+      flex-shrink: 0;
+    }
+
+    .variable-row button {
+      align-self: flex-start;
+    }
+
+    .variable-row textarea {
+      font-family: "Cascadia Code", "Courier New", monospace;
+      width: 100%;
+      min-width: 0;
+      min-height: 55px;
+      resize: vertical;
+      margin-bottom: 0.35rem;
+    }
+
+    .variable-row textarea.collapsed {
+      height: 75px;
+    }
+
+    .variable-row textarea.expanded {
+      height: auto;
+    }
+
+    .message-row button,
+    .variable-row button {
+      padding: 0.35rem 0.6rem;
+      font-size: 0.85rem;
+      background: #d9534f;
+    }
+
+    .message-row button:hover,
+    .variable-row button:hover {
+      background: #c03d39;
+    }
+
+    .message-row button.secondary,
+    .variable-row button.secondary {
+      background: #6c757d;
+    }
+
+    .message-row button.secondary:hover,
+    .variable-row button.secondary:hover {
+      background: #555d63;
+    }
+
+    .global-variables {
+      border: 1px solid #d9d9d9;
+      border-radius: 6px;
+      padding: 1rem;
+      background: #fff;
+    }
+
+    .global-variables-header {
+      display: flex;
+      align-items: baseline;
+      gap: 0.75rem;
+      margin-bottom: 0.85rem;
+    }
+
+    .global-variables-header h4 {
+      margin: 0;
+    }
+
+    .global-variables-header .help-text {
+      margin: 0;
+      color: #555;
+      font-size: 0.85rem;
+    }
+
+    .global-variables .variables-list {
+      margin-bottom: 0.85rem;
+    }
+
+    .test-card {
+      border: 1px solid #d9d9d9;
+      border-radius: 6px;
+      padding: 0.9rem;
+      margin-bottom: 0.9rem;
+      background: #fafafa;
+    }
+
+    .test-card-header {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 0.75rem;
+      margin-bottom: 0.75rem;
+    }
+
+    .test-card-header strong {
+      min-width: 60px;
+    }
+
+    .test-card input[type="checkbox"] {
+      width: auto;
+    }
+
+    .test-card .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 0.75rem;
+    }
+
+    .test-card .variables {
+      margin-top: 0.75rem;
+    }
+
+    .variables-header {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      margin-bottom: 0.35rem;
+    }
+
+    .variables-header h4 {
+      margin: 0;
+    }
+
+    .variables-header-actions {
+      display: flex;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+    }
+
+    .test-card .variables-actions {
+      margin-top: 0.5rem;
+      display: flex;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+    }
+
+    .test-card .variables-actions button {
+      flex: none;
+    }
+
+    .test-card footer {
+      margin-top: 0.75rem;
+      display: flex;
+      justify-content: flex-end;
+    }
+
+    .test-card .expected-container {
+      margin-top: 0.75rem;
+    }
+
+    .test-card .expected-container label {
+      display: block;
+      margin-bottom: 0.35rem;
+      font-weight: 600;
+      font-size: 0.9rem;
+    }
+
+    .test-card textarea.t-expected {
+      min-height: auto;
+      margin-bottom: 0.5rem;
+    }
+
+    .add-variable-btn {
+      background: #198754;
+    }
+
+    .add-variable-btn:hover {
+      background: #136741;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 0.75rem;
+    }
+
+    th,
+    td {
+      padding: 0.6rem 0.5rem;
+      border: 1px solid #dadada;
+      text-align: left;
+      word-break: break-word;
+    }
+
+    tbody tr {
+      cursor: pointer;
+    }
+
+    tbody tr:hover {
+      background: #eaeffb;
+    }
+
+    tbody tr.selected {
+      background: #d8e5ff;
+    }
+
+    .response-cell {
+      white-space: pre-wrap;
+      word-break: break-word;
+      overflow-wrap: anywhere;
+      max-width: 40ch;
+    }
+
+    .response-cell--correct {
+      color: #146c2e;
+    }
+
+    .response-cell--wrong {
+      color: #d9534f;
+    }
+
+    @keyframes fade-out-green {
+      from {
+        background-color: rgba(20, 108, 46, 0.4);
+      }
+
+      to {
+        background-color: transparent;
+      }
+    }
+
+    @keyframes fade-out-red {
+      from {
+        background-color: rgba(176, 0, 32, 0.4);
+      }
+
+      to {
+        background-color: transparent;
+      }
+    }
+
+    .status-bar {
+      margin-top: 0.4rem;
+      font-size: 0.9rem;
+      color: #444;
+    }
+
+    .status-msg-text {
+      padding: 0.1rem 0.6rem;
+      border-radius: 4px;
+      display: inline-block;
+    }
+
+    header .status-bar {
+      margin-top: 0;
+      min-height: 1.4rem;
+      flex: 1 1 220px;
+      text-align: right;
+    }
+
+    .status-highlight-success {
+      animation: fade-out-green 2s forwards;
+    }
+
+    .status-highlight-error {
+      animation: fade-out-red 2s forwards;
+    }
+
+    .run-detail {
+      border: 1px solid #d9d9d9;
+      border-radius: 6px;
+      padding: 0.75rem;
+      margin-bottom: 0.75rem;
+      background: #fff;
+    }
+
+    .run-detail-header {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .run-detail-meta {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-weight: 600;
+    }
+
+    .run-detail-meta .request-duration {
+      font-weight: 400;
+      font-size: 0.85rem;
+      color: #555;
+    }
+
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.75rem;
+      padding: 0.15rem 0.5rem;
+      border-radius: 999px;
+      color: #fff;
+      text-transform: uppercase;
+    }
+
+    .status-badge.pass {
+      background: #198754;
+    }
+
+    .status-badge.fail {
+      background: #d9534f;
+    }
+
+    .status-badge.error {
+      background: #9b1c31;
+    }
+
+    .status-badge.unknown {
+      background: #6c757d;
+    }
+
+    button.small {
+      padding: 0.3rem 0.55rem;
+      font-size: 0.8rem;
+    }
+
+    .run-detail details {
+      margin-top: 0.6rem;
+    }
+
+    .run-detail details pre {
+      margin-top: 0.35rem;
+      max-height: 30vh;
+      overflow: auto;
+    }
+
+    .test-detail-title {
+      margin: 0 0 0.9rem;
+      font-size: 1rem;
+    }
+
+    .test-detail-label {
+      font-weight: 400;
+      margin-right: 0.35rem;
+    }
+
+    .test-detail-name {
+      font-weight: 700;
+      font-size: 1.2rem;
+    }
+
+    .error {
+      color: #b00020;
+    }
+
+    .success {
+      color: #146c2e;
+    }
+
+    #test-details pre {
+      white-space: pre-wrap;
+    }
+
+    .test-details-modal {
+      width: 90%;
+      max-width: 1200px;
+      border: 1px solid #d9d9d9;
+      border-radius: 8px;
+      padding: 1.5rem;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+      background: #fff;
+      color: #222;
+    }
+
+    .test-details-modal::backdrop {
+      background: rgba(0, 0, 0, 0.4);
+      backdrop-filter: blur(2px);
+    }
+
+    .modal-footer {
+      display: flex;
+      justify-content: flex-end;
+      gap: 0.75rem;
+      margin-top: 1.5rem;
+      padding-top: 1rem;
+      border-top: 1px solid #ddd;
+      position: sticky;
+      bottom: -1.5rem;
+      background: inherit;
+      z-index: 10;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      .modal-footer {
+        border-top-color: #444;
+      }
+    }
+
+    .test-actions-cell button {
+      margin-left: 0.25rem;
+    }
+
+    .test-actions-cell {
+      white-space: nowrap;
+    }
+
+    .test-actions {
+      margin-top: 1rem;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1rem;
+      align-items: center;
+    }
+
+    .test-actions #add-test {
+      margin-left: auto;
+    }
+
+    .settings-label {
+      display: inline-block;
+      font-weight: 600;
+      margin-bottom: 0.35rem;
+    }
+
+    .settings-block {
+      border: 1px solid #d9d9d9;
+      border-radius: 6px;
+      padding: 1rem;
+      background: #fff;
+      margin-bottom: 1rem;
+    }
+
+    .settings-block-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 1rem;
+      margin-bottom: 0.75rem;
+    }
+
+    .provider-radio {
+      font-weight: 600;
+    }
+
+    .settings-block h4 {
+      margin: 0 0 0.75rem 0;
+    }
+
+    .settings-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 1rem;
+      align-items: flex-start;
+    }
+
+    /* Allow grid children to shrink below content-based minimums so
+     inputs (API key etc.) don't overflow into adjacent cells. */
+    .settings-grid>div {
+      min-width: 0;
+    }
+
+    .api-key-row {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .api-key-row>.api-key-input-wrap {
+      flex: 1 1 auto;
+      min-width: 0;
+    }
+
+    .settings-actions {
+      display: flex;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+      align-items: flex-end;
+    }
+
+    /* Dim only disabled controls inside an inactive settings block so
+     labels (especially provider radio labels) remain fully visible. */
+    .settings-block.inactive input:disabled,
+    .settings-block.inactive select:disabled,
+    .settings-block.inactive textarea:disabled,
+    .settings-block.inactive button:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+
+    .judge-toggle-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 1rem;
+      margin-bottom: 1rem;
+    }
+
+    .judge-prompts .flex-col+.flex-col {
+      margin-top: 1rem;
+    }
+
+    @media (prefers-color-scheme: dark) {
+
+      html,
+      body {
+        background: #111;
+        color: #f0f0f0;
+      }
+
+      .test-details-modal {
+        background: #222;
+        color: #f0f0f0;
+        border-color: #444;
+      }
+
+      textarea,
+      input[type="text"],
+      input[type="number"],
+      select {
+        background: #2a2a2a;
+        color: #f0f0f0;
+        border-color: #444;
+      }
+
+      pre {
+        background: #2a2a2a;
+        color: #f0f0f0;
+      }
+
+      header {
+        background: #111;
+        border-bottom-color: #333;
+      }
+
+      .tab-bar {
+        border-bottom-color: #444;
+        background: #222;
+        /* Darker than #111 for differentiation */
+      }
+
+      .tab-btn {
+        color: #aaa;
+      }
+
+      .tab-btn:hover {
+        color: #6db3f2;
+        background: rgba(109, 179, 242, 0.08);
+      }
+
+      .tab-btn.active {
+        color: #6db3f2;
+        background: #1e1e1e;
+      }
+
+      .tab-btn.tab-btn-error {
+        color: #ff6b68;
+      }
+
+      .tab-panel {
+        background: #1e1e1e;
+        border-color: #444;
+      }
+
+      .global-variables {
+        background: #1d1d1d;
+        border-color: #333;
+      }
+
+      .global-variables-header .help-text {
+        color: #aaa;
+      }
+
+      .run-detail-meta .request-duration {
+        color: #ccc;
+      }
+
+      .run-detail {
+        background: #1d1d1d;
+        border-color: #333;
+      }
+
+      .settings-block {
+        background: #1d1d1d;
+        border-color: #333;
+      }
+
+      .test-card {
+        background: #1d1d1d;
+        border-color: #333;
+      }
+
+      .test-detail-label {
+        color: #ccc;
+      }
+
+      table {
+        border-color: #333;
+      }
+
+      th,
+      td {
+        border-color: #333;
+      }
+
+      tbody tr:hover {
+        background: #1d2c47;
+      }
+
+      tbody tr.selected {
+        background: #1a3a66;
+      }
+
+      .header-controls button {
+        background: #3d8bfd;
+      }
+
+      .header-controls button:hover {
+        background: #3377d6;
+      }
+
+      /* CodeMirror Dark Mode Overrides */
+      .CodeMirror {
+        background: #202020;
+        color: #f0f0f0;
+        border-color: #444;
+      }
+
+      .CodeMirror-gutters {
+        background: #1d1d1d;
+        border-right: 1px solid #444;
+      }
+
+      .CodeMirror-cursor {
+        border-left: 1px solid #f0f0f0;
+      }
+
+      .editor-container {
+        background: #202020;
+        border-color: #444;
+      }
+    }
+
+    /* CodeMirror Base Customizations */
+    .CodeMirror {
+      border-radius: 4px;
+      font-family: "Cascadia Code", "Courier New", monospace;
+      font-size: 0.95rem;
+      overflow: hidden;
+    }
+
+    .editor-container {
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      height: 150px;
+      min-height: 100px;
+      resize: vertical;
+      overflow: hidden;
+      padding-bottom: 12px;
+      box-sizing: border-box;
+      background: #fff;
+    }
+
+    .editor-container .CodeMirror {
+      height: 100%;
+      border: none;
+    }
+
+    /* Unify colors for content inside Jinja tags */
+    .cm-s-default .cm-keyword,
+    .cm-s-default .cm-variable,
+    .cm-s-default .cm-variable-2,
+    .cm-s-default .cm-string-2,
+    .cm-s-default .cm-number,
+    .cm-s-default .cm-operator,
+    .cm-s-default .cm-atom,
+    .cm-s-default .cm-meta {
+      color: #117700;
+    }
+
+    /* Strings (JSON and Jinja - outer strings) */
+    .cm-s-default .cm-string {
+      color: #a31515;
+    }
+
+    /* Jinja Comments - Lighter Green than statements */
+    .cm-s-default .cm-comment {
+      color: #55aa55;
+    }
+
+    /* Specifically bold variables in the editor */
+    .cm-s-default .cm-variable {
+      font-weight: bold;
+    }
+
+    /* XML Tag colors */
+    .cm-s-default .cm-xml-tag,
+    .cm-s-default .cm-attribute,
+    .cm-s-default .cm-tag {
+      color: #2626fa;
+    }
+
+    /* JSON Property (Keys) */
+    .cm-s-default .cm-property {
+      color: #2626fa;
+    }
+
+    @media (prefers-color-scheme: dark) {
+
+      .cm-s-default .cm-keyword,
+      .cm-s-default .cm-variable,
+      .cm-s-default .cm-variable-2,
+      .cm-s-default .cm-string-2,
+      .cm-s-default .cm-number,
+      .cm-s-default .cm-operator,
+      .cm-s-default .cm-atom,
+      .cm-s-default .cm-meta {
+        color: #7ee081;
+      }
+
+      /* Strings in Dark Mode */
+      .cm-s-default .cm-string {
+        color: #ce9178;
+      }
+
+      /* Jinja Comments in Dark Mode - Lighter Green */
+      .cm-s-default .cm-comment {
+        color: #98fb98;
+      }
+
+      /* XML Tags in Dark Mode */
+      .cm-s-default .cm-xml-tag,
+      .cm-s-default .cm-attribute,
+      .cm-s-default .cm-tag {
+        color: #7d9cdf;
+      }
+
+      /* JSON Property (Keys) in Dark Mode */
+      .cm-s-default .cm-property {
+        color: #7d9cdf;
+      }
+    }
+    /* ─── Help Tab ────────────────────────────────────── */
+    #tab-help h2 {
+      margin-top: 0;
+      color: #1a73e8;
+      font-size: 1.75rem;
+      border-bottom: 2px solid #eef2f8;
+      padding-bottom: 0.5rem;
+      margin-bottom: 1.5rem;
+    }
+
+    #tab-help h3 {
+      color: #333;
+      font-size: 1.25rem;
+      margin-top: 2rem;
+    }
+
+    #tab-help p {
+      line-height: 1.6;
+      color: #444;
+      font-size: 1.05rem;
+    }
+
+    #tab-help ul {
+      padding-left: 1.2rem;
+      margin-top: 1rem;
+    }
+
+    #tab-help li {
+      margin-bottom: 0.8rem;
+      line-height: 1.5;
+      color: #444;
+    }
+
+    #tab-help li strong {
+      color: #1a73e8;
+    }
+
+    #tab-help code {
+      background: #f0f0f0;
+      padding: 0.2rem 0.4rem;
+      border-radius: 4px;
+      font-family: "Cascadia Code", "Courier New", monospace;
+      font-size: 0.9rem;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      #tab-help h2 {
+        color: #6db3f2;
+        border-bottom-color: #333;
+      }
+
+      #tab-help h3 {
+        color: #ddd;
+      }
+
+      #tab-help p,
+      #tab-help li {
+        color: #ccc;
+      }
+
+      #tab-help li strong {
+        color: #6db3f2;
+      }
+
+      #tab-help code {
+        background: #333;
+        color: #f0f0f0;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <div class="app-container">
+    <header>
+      <a href="https://github.com/Dmytronius/prompt-tester" target="_blank" rel="noopener noreferrer">
+        <svg height="50" viewBox="0 0 290 80" xmlns="http://www.w3.org/2000/svg" fill="none">
+          <path d="M10 20q0-10 10-10h50q10 0 10 10v25q0 10-10 10H45L35 68l-3-13H20q-10 0-10-10Z" stroke="url(#a)"
+            stroke-width="4" fill="#fff" />
+          <path d="m28 20 17 10-17 12" stroke="#0b1a33" stroke-width="4" stroke-linecap="round"
+            stroke-linejoin="round" />
+          <circle cx="70" cy="50" r="20" fill="#3ddc97" />
+          <path d="m62 55 5 8 13-18" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" />
+          <text x="105" y="48" font-family="Arial, Helvetica, sans-serif" font-size="28" font-weight="600"
+            fill="#0b1a33">
+            Prompt<tspan fill="url(#a)">Tester</tspan>
+          </text>
+          <defs>
+            <linearGradient id="a" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0%" stop-color="#6a5cff" />
+              <stop offset="100%" stop-color="#7a5cff" />
+            </linearGradient>
+          </defs>
+        </svg>
+      </a>
+      <span class="app-version" title="First release">v1.0</span>
+      <div class="header-controls">
+        <div id="status" class="status-bar"></div>
+        <button id="run-tests" type="button">Run tests</button>
+        <button id="save-config" type="button" class="secondary">Save JSON</button>
+        <button id="load-config" type="button" class="secondary">Load JSON</button>
+      </div>
+      <input id="load-file-input" type="file" accept="application/json" />
+    </header>
+    <main>
+      <div class="tab-bar">
+        <button id="tab-btn-llm-request" class="tab-btn active" onclick="switchTab(event, 'tab-llm-request')">LLM
+          request</button>
+        <button id="tab-btn-developer-prompt" class="tab-btn"
+          onclick="switchTab(event, 'tab-developer-prompt')">Developer prompt</button>
+        <button class="tab-btn" onclick="switchTab(event, 'tab-messages')">Messages</button>
+        <button id="tab-btn-tests" class="tab-btn" onclick="switchTab(event, 'tab-tests')">Tests</button>
+        <button id="tab-btn-settings" class="tab-btn" onclick="switchTab(event, 'tab-settings')">Settings</button>
+        <button id="tab-btn-help" class="tab-btn" onclick="switchTab(event, 'tab-help')">Help</button>
+      </div>
+
+      <div id="tab-llm-request" class="tab-panel active">
+        <div class="section-body">
+
+          <div id="llm-request-body-editor" class="editor-container"
+            title="Nunjucks template of LLM raw payload. You can extract developer's prompt and messages from it.">
+          </div>
+          <div id="llm-request-body-error" class="template-error-message" style="display:none;"></div>
+          <div style="margin-top: 1rem; display: flex; gap: 0.5rem;">
+            <button id="extract-prompt-messages" type="button"
+              title="Extract prompt &amp; messages from raw LLM request" class="secondary small">Extract prompt &amp;
+              messages</button>
+            <button id="beautify-llm-request" type="button" class="secondary small">Beautify JSON</button>
+            <button id="unescape-llm-request" type="button" class="secondary small">Unescape</button>
+          </div>
+        </div>
+      </div>
+
+      <div id="tab-developer-prompt" class="tab-panel">
+        <div class="section-body">
+          <div id="developer-prompt-editor" class="editor-container"></div>
+          <div id="developer-prompt-error" class="template-error-message" style="display:none;"></div>
+          <div style="justify-content: flex-end; margin-top: 1rem; display: flex; gap: 0.5rem;">
+            <label>
+              <input type="checkbox" id="spellcheck-toggle" checked> Spellcheck
+            </label>
+            <button id="unescape-developer-prompt" type="button" class="secondary small"
+              title="Unescape content">Unescape</button>
+            <button id="copy-developer-prompt" type="button" class="secondary small"
+              title="Copy to clipboard">📋</button>
+          </div>
+        </div>
+      </div>
+
+      <div id="tab-messages" class="tab-panel">
+        <div class="section-body">
+          <h3 id="messages-heading" title="Nunjucks template">Assistant &amp; user messages</h3>
+          <div id="messages-container"></div>
+          <button id="add-message" class="secondary" type="button">Add message</button>
+        </div>
+      </div>
+
+      <div id="tab-tests" class="tab-panel">
+        <div class="section-body">
+          <div class="global-variables">
+            <div class="global-variables-header">
+              <h4>Global variables</h4>
+              <p class="help-text">(Applied to every test. Test-level values with the same name override these)</p>
+            </div>
+            <div id="global-variables-list" class="variables-list"></div>
+            <button type="button" id="add-global-variable" class="add-variable-btn">Add global variable</button>
+          </div>
+
+          <div id="results-wrapper">
+            <h3>Tests & Results</h3>
+            <table>
+              <thead>
+                <tr>
+                  <th style="width: 40px;"><input type="checkbox" id="select-all-tests" title="Select all tests"></th>
+                  <th>Test name</th>
+                  <th style="width: 80px;">Repeat</th>
+                  <th>Pass score</th>
+                  <th>Request time (s)</th>
+                  <th>First response</th>
+                  <th style="width: 150px;">Actions</th>
+                </tr>
+              </thead>
+              <tbody id="results-body">
+                <tr>
+                  <td colspan="7" style="text-align:center;">No tests added yet.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="test-actions" style="margin-bottom: 1rem;">
+            <button id="add-test" type="button">Add test</button>
+          </div>
+
+          <dialog id="test-details-modal" class="test-details-modal">
+            <div id="details-content"></div>
+          </dialog>
+        </div>
+      </div>
+
+      <div id="tab-settings" class="tab-panel">
+        <div class="section-body">
+          <div class="settings-block" id="openai-settings">
+            <div class="settings-block-header">
+              <label class="inline provider-radio">
+                <input class="provider-radio-input" type="radio" name="provider" value="openai" checked />
+                <span>Use OpenAI</span>
+              </label>
+            </div>
+            <div class="settings-grid">
+              <div>
+                <label for="api-key">OpenAI API key</label>
+                <div class="api-key-row">
+                  <div class="api-key-input-wrap">
+                    <input id="api-key" type="text" class="api-key-input" placeholder="sk-..." autocomplete="off" />
+                  </div>
+                  <div>
+                    <button id="delete-api-key" type="button" class="secondary small"
+                      title="Delete the API key from the browser's localStorage">Del</button>
+                  </div>
+                </div>
+              </div>
+              <div>
+                <label for="openai-base-url">OpenAI Base URL</label>
+                <input id="openai-base-url" type="text" placeholder="https://api.openai.com/v1" autocomplete="off"
+                  list="openai-base-urls" />
+                <datalist id="openai-base-urls">
+                  <option value="https://api.openai.com/v1"></option>
+                </datalist>
+              </div>
+              <div>
+                <label for="judge-model">Judge model</label>
+                <select id="judge-model">
+                  <option value="gpt-5.1">gpt-5.1</option>
+                  <option value="gpt-5.1:low">gpt-5.1 (low reasoning)</option>
+                  <option value="gpt-5.1:mid">gpt-5.1 (mid reasoning)</option>
+                  <option value="gpt-5.1-mini:mid">gpt-5.1-mini (mid reasoning)</option>
+                  <option value="gpt-5">gpt-5</option>
+                  <option value="gpt-5:low">gpt-5 (low reasoning)</option>
+                  <option value="gpt-5:mid">gpt-5 (mid reasoning)</option>
+                  <option value="gpt-5-mini:low">gpt-5-mini (low reasoning)</option>
+                  <option value="gpt-5-mini:mid">gpt-5-mini (mid reasoning)</option>
+                  <option value="gpt-4.1">gpt-4.1</option>
+                </select>
+              </div>
+              <div>
+                <div class="settings-label">OpenAI API type</div>
+                <div class="api-controls">
+                  <label class="inline">
+                    <input type="radio" name="api-type" value="responses" checked />
+                    <span>OpenAI Responses</span>
+                  </label>
+                  <label class="inline">
+                    <input type="radio" name="api-type" value="completions" />
+                    <span>OpenAI Completions</span>
+                  </label>
+                </div>
+              </div>
+              <div class="settings-actions">
+              </div>
+            </div>
+          </div>
+          <div class="settings-block" id="gemini-settings">
+            <div class="settings-block-header">
+              <label class="inline provider-radio">
+                <input class="provider-radio-input" type="radio" name="provider" value="gemini" />
+                <span>Use Gemini</span>
+              </label>
+            </div>
+            <div class="settings-grid">
+              <div>
+                <label for="gemini-api-key">Gemini API key</label>
+                <div class="api-key-row">
+                  <div class="api-key-input-wrap">
+                    <input id="gemini-api-key" type="text" placeholder="AIza..." autocomplete="off" />
+                  </div>
+                  <div>
+                    <button id="delete-gemini-api-key" type="button" class="secondary small"
+                      title="Delete the API key from the browser's localStorage">Del</button>
+                  </div>
+                </div>
+              </div>
+              <div>
+                <label for="gemini-base-url">Gemini Base URL</label>
+                <input id="gemini-base-url" type="text" placeholder="https://generativelanguage.googleapis.com/v1beta"
+                  autocomplete="off" list="gemini-base-urls" />
+                <datalist id="gemini-base-urls">
+                  <option value="https://generativelanguage.googleapis.com/v1beta"></option>
+                </datalist>
+              </div>
+              <div>
+                <label for="gemini-model">Gemini model</label>
+                <input id="gemini-model" list="gemini-models" type="text" placeholder="gemini-2.5-flash"
+                  autocomplete="off" />
+                <datalist id="gemini-models">
+                  <option value="gemini-3-pro-preview"></option>
+                  <option value="gemini-2.5-pro"></option>
+                  <option value="gemini-2.5-flash"></option>
+                  <option value="gemini-2.5-flash-lite"></option>
+                  <option value="gemini-2.0-flash"></option>
+                </datalist>
+              </div>
+              <div>
+                <label for="gemini-judge-model">Gemini judge model</label>
+                <input id="gemini-judge-model" list="gemini-judge-models" type="text" placeholder="gemini-2.5-pro"
+                  autocomplete="off" />
+                <datalist id="gemini-judge-models">
+                  <option value="gemini-3-pro-preview"></option>
+                  <option value="gemini-2.5-pro"></option>
+                </datalist>
+              </div>
+              <div class="settings-actions">
+              </div>
+            </div>
+          </div>
+          <div class="settings-block" id="judge-settings">
+            <div class="judge-toggle-row">
+              <label class="inline" title="Uncheck to skip the judgment step and just collect the raw responses">
+                <input id="enable-judge" type="checkbox" checked />
+                <span>Enable judging step</span>
+              </label>
+            </div>
+            <div class="judge-prompts">
+              <div class="flex-col">
+                <h3 id="judge-prompt-heading" title="Nunjucks template">Judge prompt <span id="judge-status"
+                    class="template-status"></span></h3>
+                <div id="judge-prompt-error" class="template-error-message" style="display:none;"></div>
+                <textarea id="judge-prompt" placeholder="Enter the judge prompt template" spellcheck="false"></textarea>
+              </div>
+              <div class="flex-col" style="margin-top: 1rem;">
+                <h3>Judge system prompt</h3>
+                <textarea id="judge-system-prompt" placeholder="Enter the judge system prompt"
+                  spellcheck="false"></textarea>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div id="tab-help" class="tab-panel">
+        <div class="section-body">
+          <h2>Help & Overview</h2>
+          <p><strong>Prompt Tester</strong> is a powerful tool designed to help you iterate, test, and evaluate LLM prompts across different models and scenarios. It supports template-based prompt generation, automated testing, and AI-assisted evaluation.</p>
+
+          <h3>Quick Start Guide</h3>
+          <ul>
+            <li><strong>Configure API Settings</strong>: Navigate to the <strong>Settings</strong> tab to enter your OpenAI or Gemini API key and select your preferred model.</li>
+            <li><strong>Create Templates</strong>: Use the <strong>LLM request</strong>, <strong>Developer prompt</strong>, or <strong>Messages</strong> tabs to define your prompt structure. Use <code>{{ variable_name }}</code> for dynamic content.</li>
+            <li><strong>Define Variables</strong>: In the <strong>Tests</strong> tab, add global variables or test-specific variables that will be injected into your templates.</li>
+            <li><strong>Manage Tests</strong>: Click <strong>Add test</strong> to create different scenarios. You can specify "Expected" answers for the judge to compare against.</li>
+            <li><strong>Execute & Analyze</strong>: Click <strong>Run tests</strong> in the header. Once finished, review the results table. Click any row to see the full request and response history.</li>
+            <li><strong>Persist Work</strong>: Use <strong>Save JSON</strong> to download your current setup and <strong>Load JSON</strong> to restore it later.</li>
+          </ul>
+
+          <h3>Template Syntax</h3>
+          <p>The app uses <a href="https://mozilla.github.io/nunjucks/" target="_blank" rel="noopener noreferrer">Nunjucks</a> for templating. You can use simple variable substitution, loops, and conditionals within your prompts.</p>
+        </div>
+      </div>
+    </main>
+  </div>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/mode/simple.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/nunjucks/3.2.4/nunjucks.min.js"></script>
+  <script>
+    (function () {
+      /**
+       * =========================================
+       * Constants & Configuration
+       * =========================================
+       */
+      const CONSTANTS = {
+        DEFAULT_JUDGE_PROMPT: `You are judging whether an assistant response matches the expected answer. Reply with JSON {"result":"pass"|"fail","explanation":"..."}.\n\nExpected response:\n{{ expected }}\n\nAssistant response:\n{{ actual }}`,
+        DEFAULT_JUDGE_SYSTEM_PROMPT: "Judge if the assistant response semantically matches the expected answer. Be strict about core facts.",
+        DEFAULT_OPENAI_BASE_URL: "https://api.openai.com/v1",
+        DEFAULT_GEMINI_BASE_URL: "https://generativelanguage.googleapis.com/v1beta",
+        STORAGE_KEYS: {
+          judgeEnabled: "promptTester.judgeEnabled",
+          openaiBaseUrl: "promptTester.openaiBaseUrl",
+          openaiApiKey: "promptTester.openaiApiKey",
+          openaiJudgeModel: "promptTester.openaiJudgeModel",
+          geminiBaseUrl: "promptTester.geminiBaseUrl",
+          geminiApiKey: "promptTester.geminiApiKey",
+          geminiModel: "promptTester.geminiModel",
+          geminiJudgeModel: "promptTester.geminiJudgeModel"
+        },
+        STATUS_ERROR_MAX_CHARS: 220,
+        MAX_CONCURRENT_REQUESTS: 10
+      };
+
+      /**
+       * =========================================
+       * Utilities
+       * =========================================
+       */
+      const Utils = {
+        escapeHtml(value) {
+          return String(value ?? "").replace(/[&<>"']/g, ch => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;", "'": "&#39;" }[ch]));
+        },
+
+        slashUnescape(text) {
+          if (!text) return text;
+          return text.replace(/\\(u[0-9a-fA-F]{4}|x[0-9a-fA-F]{2}|.)/g, (match, p1) => {
+            if (p1.startsWith('u') || p1.startsWith('x')) {
+              try {
+                return String.fromCharCode(parseInt(p1.slice(1), 16));
+              } catch (e) {
+                return match;
+              }
+            }
+            switch (p1) {
+              case 'n': return '\n';
+              case 'r': return '\r';
+              case 't': return '\t';
+              case '\\': return '\\';
+              case '"': return '"';
+              case "'": return "'";
+              default: return match;
+            }
+          });
+        },
+
+        safeJsonStringify(value) {
+          if (value === null || value === undefined) return "";
+          if (typeof value === "string") return value;
+          try { return JSON.stringify(value, null, 2); } catch (e) { return String(value); }
+        },
+
+        safeJsonParse(value) {
+          if (typeof value !== "string" || !value.trim()) return null;
+          try { return JSON.parse(value); } catch (e) { return null; }
+        },
+
+        clone(obj) {
+          if (!obj || typeof obj !== "object") return null;
+          try { return JSON.parse(JSON.stringify(obj)); } catch (e) { return null; }
+        },
+
+        timestampSlug() {
+          const now = new Date();
+          const pad = v => String(v).padStart(2, "0");
+          return `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}-${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
+        },
+
+        async copyToClipboard(text, successMessage) {
+          try {
+            if (navigator?.clipboard?.writeText) {
+              await navigator.clipboard.writeText(text);
+            } else {
+              const ta = document.createElement("textarea");
+              ta.value = text;
+              ta.style.cssText = "position:fixed;opacity:0;";
+              document.body.appendChild(ta);
+              ta.focus();
+              ta.select();
+              document.execCommand("copy");
+              document.body.removeChild(ta);
+            }
+            if (successMessage) UI.setStatus(successMessage, "success");
+          } catch (e) {
+            console.error("Clipboard error", e);
+            UI.setStatus("Failed to copy to clipboard.", "error");
+          }
+        },
+
+        // Nunjucks helper
+        nunjucksEnv: typeof nunjucks !== "undefined"
+          ? new nunjucks.Environment(null, { autoescape: false, throwOnUndefined: false, trimBlocks: false, lstripBlocks: false })
+          : null,
+
+        renderTemplate(template, variables) {
+          if (!template) return template;
+          if (!this.nunjucksEnv) return template;
+          try { return this.nunjucksEnv.renderString(template, variables ?? {}); }
+          catch (e) { console.warn("Template render error", e); return template; }
+        },
+
+        tryRender(template) {
+          if (!this.nunjucksEnv) return { ok: true, rendered: template || "" };
+          try {
+            return { ok: true, rendered: this.nunjucksEnv.renderString(template || "", {}) };
+          } catch (e) {
+            return { ok: false, error: (e?.message || String(e)).replace(/\s*\(unknown path\)\s*/g, "") };
+          }
+        },
+
+        validate(template, shouldCheckJson = false) {
+          const r = this.tryRender(template);
+          if (!r.ok) return { ok: false, error: "Template Error: " + r.error };
+
+          if (shouldCheckJson) {
+            try {
+              JSON.parse(r.rendered);
+              return { ok: true, rendered: r.rendered };
+            } catch (e) {
+              return { ok: false, error: "JSON Error: " + e.message };
+            }
+          }
+          return r;
+        },
+
+        extractTemplateVariables(template) {
+          if (typeof template !== "string" || !template.trim()) return [];
+          const seen = new Set();
+          const variables = [];
+          // Simple regex-based extraction for {{ variable }}
+          // This mirrors the original logic's intent but simplified
+          const regex = /\{\{\s*([A-Za-z0-9_$]+)(?:[.\[][^|}]*)?(?:\|[^}]+)?\s*\}\}/g;
+          let match;
+          while ((match = regex.exec(template)) !== null) {
+            const name = match[1];
+            if (!seen.has(name)) {
+              seen.add(name);
+              variables.push(name);
+            }
+          }
+          return variables;
+        },
+
+        validateVariableValue(value, type) {
+          if (type === "JSON") {
+            return this.validate(value, true);
+          }
+          return { ok: true };
+        },
+
+        beautifyJSON(text) {
+          if (typeof text !== "string" || !text.trim()) return text;
+          try {
+            const obj = JSON.parse(text);
+            return JSON.stringify(obj, null, 2);
+          } catch (e) {
+            return text;
+          }
+        }
+      };
+
+      // Expose switchTab to window
+      window.switchTab = (...args) => UI.switchTab(...args);
+
+      /**
+       * =========================================
+       * Storage Manager
+       * =========================================
+       */
+      const Storage = {
+        get(keyName, type = 'string', defaultValue = null) {
+          const key = CONSTANTS.STORAGE_KEYS[keyName];
+          if (!key) return defaultValue;
+          const raw = localStorage.getItem(key);
+          if (raw === null) return defaultValue;
+          return type === 'boolean' ? raw === 'true' : raw;
+        },
+
+        set(keyName, value) {
+          const key = CONSTANTS.STORAGE_KEYS[keyName];
+          if (!key) return;
+          if (typeof value === 'boolean') {
+            localStorage.setItem(key, value ? 'true' : 'false');
+          } else if (value) {
+            localStorage.setItem(key, value);
+          } else {
+            localStorage.removeItem(key);
+          }
+        }
+      };
+
+      /**
+       * =========================================
+       * App State
+       * =========================================
+       */
+      const State = {
+        request: {
+          llm_request_body: '',
+          developerMessage: '',
+          // Internal format for the message is {role:str, content:str} 
+          // If role is "JSON" then content should be valid JSON with the raw message (can be Nunjucks template)
+          // If role is not "JSON" then content is simple text message (can be Nunjucks template)
+          // content is string because it can be Nunjucks template
+          messages: []
+        },
+        tests: [],
+        globalVariables: [],
+        runSummaries: [],
+        nextTestId: 1,
+        judgeSystemPrompt: CONSTANTS.DEFAULT_JUDGE_SYSTEM_PROMPT,
+        judgePrompt: CONSTANTS.DEFAULT_JUDGE_PROMPT,
+        judgeEnabled: true,
+        isRunning: false
+      };
+
+      /**
+       * =========================================
+       * Providers (OpenAI & Gemini)
+       * =========================================
+       */
+      class BaseProvider {
+        constructor(name, roles) {
+          this.name = name;
+          this.roles = roles;
+        }
+
+        getSetting(key) { return ""; }
+        getSettingsBlock() { return null; }
+
+        createApiError(apiName, url, status, statusText, body, cause) {
+          const safeUrl = url || "(unknown URL)";
+          let msg = `${apiName} request to ${safeUrl} failed`;
+          if (typeof status === "number") msg += ` (${status} ${statusText || "HTTP error"})`;
+          if (body) {
+            const snippet = body.length > CONSTANTS.STATUS_ERROR_MAX_CHARS ? body.slice(0, CONSTANTS.STATUS_ERROR_MAX_CHARS) + "..." : body;
+            msg += `: ${snippet}`;
+          }
+          const err = new Error(msg);
+          if (cause) err.cause = cause;
+          err.__apiErrorContext = { apiName, url: safeUrl, status, statusText, body };
+          return err;
+        }
+
+        normalizeTokenUsage(raw) {
+          const num = v => (Number.isFinite(Number(v)) && Number(v) >= 0 ? Math.round(Number(v)) : null);
+          const s = raw || {};
+          return {
+            input: num(s.input ?? s.inputTokens ?? s.input_tokens ?? s.promptTokenCount),
+            cached: num(s.cached ?? s.cachedTokens ?? s.cached_tokens),
+            reasoning: num(s.reasoning ?? s.reasoningTokens ?? s.reasoning_tokens),
+            output: num(s.output ?? s.outputTokens ?? s.output_tokens ?? s.candidatesTokenCount)
+          };
+        }
+      }
+
+      class OpenAIProvider extends BaseProvider {
+        constructor() {
+          super("openai", ["system", "developer", "assistant", "user", "JSON"]);
+        }
+
+        getSettingsBlock() { return document.getElementById("openai-settings"); }
+
+        getKey() { return (document.getElementById("api-key")?.value || "").trim(); }
+        setKey(val) {
+          const el = document.getElementById("api-key");
+          if (el && el.value !== val) el.value = val;
+          Storage.set('openaiApiKey', val);
+        }
+
+        getBaseUrl() { return (document.getElementById("openai-base-url")?.value || "").trim() || CONSTANTS.DEFAULT_OPENAI_BASE_URL; }
+        setBaseUrl(val) { const el = document.getElementById("openai-base-url"); if (el) el.value = val; Storage.set('openaiBaseUrl', val); }
+
+        getJudgeModel() { return document.getElementById("judge-model")?.value || "gpt-5"; }
+        setJudgeModel(val) {
+          const el = document.getElementById("judge-model");
+          if (el) {
+            el.value = val || "gpt-5";
+            if (!el.value) el.selectedIndex = 0;
+          }
+          Storage.set('openaiJudgeModel', val);
+        }
+
+        getApiType() { return document.querySelector('input[name="api-type"]:checked')?.value || "responses"; }
+        setApiType(val) {
+          const els = document.querySelectorAll('input[name="api-type"]');
+          els.forEach(r => r.checked = r.value === val);
+          if (![...els].some(r => r.checked) && els[0]) els[0].checked = true;
+        }
+
+        // Call OpenAI
+        async call({ llm_body, developer, messages }) {
+          const apiType = this.getApiType();
+          const payload = { ...llm_body };
+
+          const convertedMessages = messages.map(m => {
+            let role = m.role;
+            let content = m.content;
+
+            // Check for explicit "JSON" role
+            const isJsonRole = role === "JSON";
+
+            if (isJsonRole) {
+              try {
+                // If role is strictly "JSON", return the parsed object directly (it's the full message)
+                return JSON.parse(content);
+              }
+              catch (e) {
+                UI.setStatus(`Invalid JSON in message (${role}): ${e.message}`, "error");
+                throw new Error(`Invalid JSON in message (${role})`);
+              }
+            }
+            return { role, content };
+          });
+
+          let endpoint = "responses";
+          if (apiType === "responses") {
+            // For responses endpoint, simply spread the converted messages if they are objects
+            // Note: This logic assumes 'responses' endpoint can handle raw message objects if role was JSON
+            // But typically 'responses' expects {role, content}. 
+            // If the user intends for "JSON" role to inject arbitrary objects into the array, this works.
+            payload.input = [{ role: "developer", content: developer }, ...convertedMessages];
+          } else {
+            endpoint = "chat/completions";
+            payload.messages = [{ role: "developer", content: developer }, ...convertedMessages];
+          }
+
+          const url = `${this.getBaseUrl().replace(/\/+$/, "")}/${endpoint}`;
+          const t0 = performance.now();
+          let requestDurationMs = 0;
+
+          try {
+            const resp = await fetch(url, {
+              method: "POST",
+              headers: { "Content-Type": "application/json", "Authorization": `Bearer ${this.getKey()}` },
+              body: JSON.stringify(payload)
+            });
+            if (!resp.ok) throw await this.createApiError("OpenAI", url, resp.status, resp.statusText, await resp.text());
+
+            const data = await resp.json();
+            requestDurationMs = performance.now() - t0;
+
+            return {
+              raw: this.extractText(data, apiType),
+              tokenUsage: this.extractTokens(data, apiType),
+              requestPayload: { endpoint, body: payload },
+              requestDurationMs
+            };
+          } catch (err) {
+            err.__requestDurationMs = performance.now() - t0;
+            err.__testContext = { developerPrompt: developer, requestPayload: { endpoint, body: payload } };
+            throw err;
+          }
+        }
+
+        extractText(data, type) {
+          if (!data) return "";
+          if (type === "responses") {
+            if (data.output_text) return data.output_text;
+            const msg = (data.output || []).find(p => p.type === "message");
+            if (!msg) return JSON.stringify(data.output);
+            return (msg.content || [])
+              .filter(c => c.type === "output_text" || c.type == "text").map(c => c.text || "").join("\n") || "";
+          }
+          // chat/completions
+          const choices = data.choices || [];
+          return choices.map(choice => {
+            const c = choice.message?.content;
+            return typeof c === "string" ? c : (Array.isArray(c) ? c.map(x => x.text || "").join("\n") : "");
+          }).join("\n");
+        }
+
+        extractTokens(data, type) {
+          const u = data?.usage || {};
+          const inpDetails = u.input_tokens_details || u.prompt_tokens_details || {};
+          const outDetails = u.output_tokens_details || u.completion_tokens_details || {};
+          return this.normalizeTokenUsage({
+            input: u.input_tokens || u.prompt_tokens || u.input_text_tokens,
+            cached: inpDetails.cached_tokens || u.cached_input_tokens,
+            reasoning: outDetails.reasoning_tokens || u.reasoning_tokens,
+            output: u.output_tokens || u.completion_tokens || u.output_text_tokens
+          });
+        }
+
+        async judge({ expected, actual, judgePrompt, judgeSystemPrompt }) {
+          const { prompt, systemPrompt } = this.buildJudgePrompts(expected, actual, judgePrompt, judgeSystemPrompt);
+          const schema = {
+            type: "object",
+            properties: { result: { type: "string", enum: ["pass", "fail"] }, explanation: { type: "string" } },
+            required: ["result", "explanation"],
+            additionalProperties: false
+          };
+
+          const judgeModel = this.getJudgeModel();
+          const payload = {
+            model: judgeModel.split(":")[0],
+            input: [{ role: "developer", content: systemPrompt }, { role: "user", content: prompt }],
+            text: { format: { type: "json_schema", name: "judge_response", schema } }
+          };
+          // Effort hack
+          if (judgeModel.includes(":")) {
+            const effort = judgeModel.split(":")[1];
+            payload.reasoning = { effort: effort === "mid" ? "medium" : effort };
+          }
+
+          const url = `${this.getBaseUrl().replace(/\/+$/, "")}/responses`;
+          const resp = await fetch(url, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "Authorization": `Bearer ${this.getKey()}` },
+            body: JSON.stringify(payload)
+          });
+
+          if (!resp.ok) throw await this.createApiError("OpenAI Judge", url, resp.status, resp.statusText, await resp.text());
+          const data = await resp.json();
+          const text = this.extractText(data, "responses");
+          try {
+            const parsed = JSON.parse(text);
+            return { pass: parsed.result?.toLowerCase() === "pass", explanation: parsed.explanation || "" };
+          } catch {
+            return { pass: false, explanation: `Judge output invalid: ${text}` };
+          }
+        }
+
+        buildJudgePrompts(expected, actual, tmpl, sys) {
+          const render = (t, ctx) => Utils.renderTemplate(t, ctx).replace(/\{\{\s*expected\s*\}\}/gi, ctx.expected).replace(/\{\{\s*actual\s*\}\}/gi, ctx.actual);
+          return {
+            prompt: render(tmpl || CONSTANTS.DEFAULT_JUDGE_PROMPT, { expected, actual }),
+            systemPrompt: (sys || CONSTANTS.DEFAULT_JUDGE_SYSTEM_PROMPT).trim()
+          };
+        }
+      }
+
+      class GeminiProvider extends BaseProvider {
+        constructor() {
+          super("gemini", ["system", "user", "model", "JSON"]);
+        }
+
+        getSettingsBlock() { return document.getElementById("gemini-settings"); }
+
+        getKey() { return (document.getElementById("gemini-api-key")?.value || "").trim(); }
+        setKey(val) {
+          const el = document.getElementById("gemini-api-key");
+          if (el && el.value !== val) el.value = val;
+          Storage.set('geminiApiKey', val);
+        }
+
+        getBaseUrl() { return (document.getElementById("gemini-base-url")?.value || "").trim() || CONSTANTS.DEFAULT_GEMINI_BASE_URL; }
+        setBaseUrl(val) { const el = document.getElementById("gemini-base-url"); if (el) el.value = val; Storage.set('geminiBaseUrl', val); }
+
+        getModel() { return (document.getElementById("gemini-model")?.value || "").trim(); }
+        setModel(val) { const el = document.getElementById("gemini-model"); if (el) el.value = val; Storage.set('geminiModel', val); }
+
+        getJudgeModel() { return (document.getElementById("gemini-judge-model")?.value || "").trim() || "gemini-2.5-pro"; }
+        setJudgeModel(val) { const el = document.getElementById("gemini-judge-model"); if (el) el.value = val; Storage.set('geminiJudgeModel', val); }
+
+        // Call Gemini
+        async call({ llm_body, developer, messages }) {
+          const contents = messages.map(m => {
+            const isJsonRole = m.role === "JSON";
+
+            if (isJsonRole) {
+              try {
+                return JSON.parse(m.content);
+              } catch (e) {
+                UI.setStatus(`Invalid JSON in message (JSON role): ${e.message}`, "error");
+                throw new Error(`Invalid JSON in message (JSON role)`);
+              }
+            }
+
+            return { role: m.role, parts: [{ text: m.content }] };
+          });
+
+          const payload = { ...llm_body, contents };
+          delete payload.model;
+          if (developer) payload.system_instruction = { parts: [{ text: developer }] };
+
+          const model = this.getModel();
+          const url = `${this.getBaseUrl().replace(/\/+$/, "")}/models/${encodeURIComponent(model)}:generateContent`;
+          const t0 = performance.now();
+
+          try {
+            const resp = await fetch(url, {
+              method: "POST",
+              headers: { "Content-Type": "application/json", "x-goog-api-key": this.getKey() },
+              body: JSON.stringify(payload)
+            });
+            if (!resp.ok) throw await this.createApiError("Gemini", url, resp.status, resp.statusText, await resp.text());
+
+            const data = await resp.json();
+            return {
+              raw: this.extractText(data),
+              tokenUsage: this.normalizeTokenUsage(data.usageMetadata),
+              requestPayload: { endpoint: url, body: payload },
+              requestDurationMs: performance.now() - t0
+            };
+          } catch (err) {
+            err.__requestDurationMs = performance.now() - t0;
+            err.__testContext = { developerPrompt: developer, requestPayload: { endpoint: url, body: payload } };
+            throw err;
+          }
+        }
+
+        extractText(data) {
+          const cand = data.candidates?.[0];
+          return (cand?.content?.parts || []).map(p => p.text || JSON.stringify(p)).join("\n");
+        }
+
+        async judge({ expected, actual, judgePrompt, judgeSystemPrompt }) {
+          const { prompt, systemPrompt } = new OpenAIProvider().buildJudgePrompts(expected, actual, judgePrompt, judgeSystemPrompt); // Reuse builder
+
+          const schema = {
+            type: "object",
+            properties: { result: { type: "string", enum: ["pass", "fail"] }, explanation: { type: "string" } },
+            required: ["result", "explanation"],
+          };
+
+          const model = this.getJudgeModel();
+          const url = `${this.getBaseUrl().replace(/\/+$/, "")}/models/${encodeURIComponent(model)}:generateContent`;
+          const payload = {
+            system_instruction: { role: "system", parts: [{ text: systemPrompt }] },
+            contents: [{ role: "user", parts: [{ text: prompt }] }],
+            generationConfig: { responseMimeType: "application/json", responseSchema: schema }
+          };
+
+          const resp = await fetch(url, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "x-goog-api-key": this.getKey() },
+            body: JSON.stringify(payload)
+          });
+
+          if (!resp.ok) throw await this.createApiError("Gemini Judge", url, resp.status, resp.statusText, await resp.text());
+          const data = await resp.json();
+          const text = this.extractText(data);
+          try {
+            const parsed = JSON.parse(text);
+            return { pass: parsed.result?.toLowerCase() === "pass", explanation: parsed.explanation || "" };
+          } catch {
+            return { pass: false, explanation: `Judge output invalid: ${text}` };
+          }
+        }
+      }
+
+      const Providers = {
+        openai: new OpenAIProvider(),
+        gemini: new GeminiProvider(),
+        getActive() { return document.querySelector('input[name="provider"]:checked')?.value || "openai"; },
+        setActive(name) {
+          const rad = document.querySelector(`input[name="provider"][value="${name}"]`);
+          if (rad && this.getActive() !== name) rad.click();
+        },
+        getCurrent() { return this[this.getActive()]; }
+      };
+
+      /**
+       * =========================================
+       * UI Manager
+       * =========================================
+       */
+      const UI = {
+        Elements: {
+          // Lazy getter pattern or just query when needed since DOM caches might be stale if we replaced things (not doing that here though)
+          get messages() { return document.getElementById("messages-container"); },
+
+          get results() { return document.getElementById("results-body"); },
+          get status() { return document.getElementById("status"); },
+          get globalVars() { return document.getElementById("global-variables-list"); }
+        },
+
+        switchTab(event, tabId) {
+          const btn = event.currentTarget;
+
+          // Toggle tabs
+          document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+
+          // Toggle panels
+          document.querySelectorAll('.tab-panel').forEach(panel => {
+            panel.classList.toggle('active', panel.id === tabId);
+          });
+
+          // Refresh CodeMirror editors if they are visible
+          if (tabId === 'tab-llm-request' && this.llmRequestBodyEditor) {
+            this.llmRequestBodyEditor.refresh();
+          }
+          if (tabId === 'tab-developer-prompt' && this.devPromptEditor) {
+            this.devPromptEditor.refresh();
+          }
+        },
+
+        setStatus(msg, type = "") {
+          const el = this.Elements.status;
+          if (!el) return;
+          el.className = `status-bar ${type}`;
+          el.innerHTML = '<span class="status-msg-text"></span>';
+          const span = el.querySelector('.status-msg-text');
+          span.textContent = msg;
+
+          // Trigger highlight animation on the text span
+          void span.offsetWidth; // Force reflow
+
+          if (type === 'error') {
+            span.classList.add('status-highlight-error');
+          } else {
+            span.classList.add('status-highlight-success');
+          }
+        },
+
+        bindEvents() {
+          // --- Provider Switch ---
+          document.querySelectorAll('input[name="provider"]').forEach(r => {
+            r.addEventListener("change", () => this.updateProviderUI());
+          });
+
+          // --- Buttons ---
+          document.getElementById("add-message")?.addEventListener("click", () => {
+            State.request.messages.push({ role: "user", content: "" });
+            this.renderMessages();
+          });
+          document.getElementById("add-test")?.addEventListener("click", () => {
+            this.addTest();
+          });
+          document.getElementById("select-all-tests")?.addEventListener("change", (e) => {
+            State.tests.forEach(t => t.enabled = e.target.checked);
+            this.renderTests();
+          });
+          document.getElementById("run-tests")?.addEventListener("click", () => TestRunner.run());
+          document.getElementById("save-config")?.addEventListener("click", () => this.saveConfig());
+          document.getElementById("load-config")?.addEventListener("click", () => document.getElementById("load-file-input")?.click());
+          document.getElementById("load-file-input")?.addEventListener("change", (e) => this.loadConfig(e));
+          document.getElementById("add-global-variable")?.addEventListener("click", () => {
+            State.globalVariables.push({ name: "", value: "", type: "Text" });
+            this.renderGlobalVars();
+          });
+
+          // --- Inputs Sync with State ---
+          const bindInput = (id, obj, prop) => {
+            const el = document.getElementById(id);
+            if (el) {
+              el.value = obj[prop] || "";
+              el.addEventListener("input", () => obj[prop] = el.value);
+            }
+          };
+
+          document.getElementById("judge-prompt")?.addEventListener("input", (e) => { State.judgePrompt = e.target.value; });
+          document.getElementById("judge-system-prompt")?.addEventListener("input", (e) => { State.judgeSystemPrompt = e.target.value; });
+
+          document.getElementById("enable-judge")?.addEventListener("change", (e) => {
+            State.judgeEnabled = e.target.checked;
+            Storage.set("judgeEnabled", e.target.checked);
+            this.updateJudgeUI();
+          });
+
+          // --- Template Validation (Debounced or direct) ---
+          ['judge-prompt'].forEach(id => {
+            document.getElementById(id)?.addEventListener("input", () => this.validateTemplate(id));
+          });
+
+          // --- Cursor Tracking for Error Messages ---
+          // llm-request-body and developer-prompt are handled by CodeMirror cursorActivity in init()
+
+          document.getElementById("copy-developer-prompt")?.addEventListener("click", () => Utils.copyToClipboard(State.request.developerMessage, "Copied!"));
+          document.getElementById("unescape-developer-prompt")?.addEventListener("click", () => {
+            if (this.devPromptEditor) {
+              const current = this.devPromptEditor.getValue();
+              const unescaped = Utils.slashUnescape(current);
+              if (current !== unescaped) {
+                this.devPromptEditor.setValue(unescaped);
+              }
+            }
+          });
+          document.getElementById("unescape-llm-request")?.addEventListener("click", () => {
+            if (this.llmRequestBodyEditor) {
+              const current = this.llmRequestBodyEditor.getValue();
+              const unescaped = Utils.slashUnescape(current);
+              if (current !== unescaped) {
+                this.llmRequestBodyEditor.setValue(unescaped);
+              }
+            }
+          });
+          document.getElementById("extract-prompt-messages")?.addEventListener("click", () => this.extractFromRequestBody());
+          document.getElementById("beautify-llm-request")?.addEventListener("click", () => {
+            if (this.llmRequestBodyEditor) {
+              const current = this.llmRequestBodyEditor.getValue();
+              const beautified = Utils.beautifyJSON(current);
+              if (current !== beautified) {
+                this.llmRequestBodyEditor.setValue(beautified);
+              }
+            }
+          });
+
+          // --- API Keys (Auto-save) ---
+          ['api-key', 'gemini-api-key'].forEach(id => {
+            document.getElementById(id)?.addEventListener("input", (e) => {
+              if (id === 'api-key') Providers.openai.setKey(e.target.value);
+              else Providers.gemini.setKey(e.target.value);
+            });
+          });
+
+          // --- Delete API Keys ---
+          document.getElementById("delete-api-key")?.addEventListener("click", () => {
+            Providers.openai.setKey("");
+            this.setStatus("OpenAI API key deleted", "success");
+          });
+          document.getElementById("delete-gemini-api-key")?.addEventListener("click", () => {
+            Providers.gemini.setKey("");
+            this.setStatus("Gemini API key deleted", "success");
+          });
+
+          document.getElementById("spellcheck-toggle")?.addEventListener("change", (e) => {
+            if (this.devPromptEditor) this.devPromptEditor.getInputField().spellcheck = e.target.checked;
+          });
+
+          // Keydown
+          window.addEventListener("keydown", (e) => {
+            if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "s") { e.preventDefault(); this.saveConfig(); }
+          });
+        },
+
+        updateProviderUI() {
+          const key = Providers.getActive();
+          const settings = {
+            openai: document.getElementById("openai-settings"),
+            gemini: document.getElementById("gemini-settings")
+          };
+          Object.entries(settings).forEach(([k, el]) => {
+            if (!el) return;
+            const active = k === key;
+            el.classList.toggle("inactive", !active);
+            el.querySelectorAll("input, select, textarea, button").forEach(c => {
+              if (!c.classList.contains("provider-radio-input")) c.disabled = !active;
+            });
+          });
+          if (key === "openai") Providers.openai.setApiType(Providers.openai.getApiType()); // Refresh radio sync
+          this.renderMessages();
+
+          // Update Settings tab text with provider name
+          const providerName = key === "openai" ? "OpenAI" : "Gemini";
+          this.updateTabButtonStatus("tab-btn-settings", providerName);
+        },
+
+        updateTabButtonStatus(tabBtnId, status, isError = false) {
+          const btn = document.getElementById(tabBtnId);
+          if (!btn) return;
+          let text = btn.textContent;
+          // If there's a status in parentheses, strip it to get the base text
+          text = text.replace(/\s*\(.*?\)/, "");
+          btn.textContent = status ? `${text} (${status})` : text;
+          if (isError) {
+            btn.classList.add("tab-btn-error");
+          } else {
+            btn.classList.remove("tab-btn-error");
+          }
+        },
+
+        updateJudgeUI() {
+          const enabled = State.judgeEnabled;
+          document.getElementById("judge-settings")?.classList.toggle("inactive", !enabled);
+          document.getElementById("judge-settings")?.querySelectorAll("input, textarea, select").forEach(el => {
+            if (el.id !== "enable-judge") el.disabled = !enabled;
+          });
+          document.getElementById("enable-judge").checked = enabled;
+        },
+
+        renderMessages() {
+          const container = this.Elements.messages;
+          if (!container) return;
+          container.innerHTML = "";
+          const roles = Providers.getCurrent().roles;
+
+          State.request.messages.forEach((msg, idx) => {
+            const row = document.createElement("div");
+            row.className = "message-row";
+
+            const sel = document.createElement("select");
+            roles.forEach(r => sel.add(new Option(r, r)));
+
+            if (!roles.includes(msg.role)) sel.add(new Option(msg.role, msg.role));
+            sel.value = msg.role;
+
+            const wrapper = document.createElement("div");
+            wrapper.style.minWidth = "0";
+
+            const txt = document.createElement("textarea");
+            txt.value = msg.content;
+            txt.spellcheck = true;
+
+            const err = document.createElement("div");
+            err.className = "template-error-message";
+            err.style.display = "none";
+
+            wrapper.append(txt, err);
+
+            // Validation Logic
+            const validate = () => {
+              const val = txt.value;
+              const checkJson = sel.value === "JSON";
+              const r = Utils.validate(val, checkJson);
+              const errorMsg = r.ok ? "" : r.error;
+
+              if (errorMsg) {
+                err.textContent = errorMsg;
+                err.style.display = "block";
+                txt.style.borderColor = "#b00020";
+              } else {
+                err.style.display = "none";
+                txt.style.borderColor = "";
+              }
+            };
+
+            sel.onchange = e => {
+              State.request.messages[idx].role = e.target.value;
+              validate();
+            };
+
+            txt.oninput = e => {
+              State.request.messages[idx].content = e.target.value;
+              validate();
+            };
+
+            // Run initial validation
+            validate();
+
+            const del = document.createElement("button");
+            del.textContent = "Remove";
+            del.onclick = () => { State.request.messages.splice(idx, 1); this.renderMessages(); };
+
+            const beautify = document.createElement("button");
+            beautify.textContent = "Beautify";
+            beautify.className = "secondary";
+            beautify.onclick = () => {
+              const current = txt.value;
+              const beautified = Utils.beautifyJSON(current);
+              if (current !== beautified) {
+                txt.value = beautified;
+                State.request.messages[idx].content = beautified;
+                validate();
+              }
+            };
+
+            const btnContainer = document.createElement("div");
+            btnContainer.style.display = "flex";
+            btnContainer.style.flexDirection = "column";
+            btnContainer.style.gap = "0.5rem";
+            btnContainer.append(beautify, del);
+
+            row.append(sel, wrapper, btnContainer);
+            container.appendChild(row);
+          });
+          if (State.request.messages.length === 0) container.innerHTML = "<p>No messages.</p>";
+        },
+
+        renderGlobalVars() {
+          const container = this.Elements.globalVars;
+          if (!container) return;
+          container.innerHTML = "";
+          State.globalVariables.forEach((v, i) => {
+            const row = document.createElement("div");
+            row.className = "variable-row";
+
+            // Ensure type field exists (backward compatibility)
+            if (!v.type) v.type = "Text";
+
+            const topDiv = document.createElement("div");
+            topDiv.className = "variable-row-top";
+
+            const nameInput = document.createElement("input");
+            nameInput.type = "text";
+            nameInput.placeholder = "name";
+            nameInput.value = v.name;
+            nameInput.oninput = e => State.globalVariables[i].name = e.target.value;
+
+            const typeSelect = document.createElement("select");
+            typeSelect.innerHTML = '<option value="Text">Text</option><option value="JSON">JSON</option>';
+            typeSelect.value = v.type;
+            typeSelect.onchange = e => {
+              State.globalVariables[i].type = e.target.value;
+              validate();
+            };
+
+            const removeBtn = document.createElement("button");
+            removeBtn.textContent = "Remove";
+            removeBtn.onclick = () => { State.globalVariables.splice(i, 1); this.renderGlobalVars(); };
+
+            topDiv.append(nameInput, typeSelect, removeBtn);
+
+            const textarea = document.createElement("textarea");
+            textarea.placeholder = "value";
+            textarea.value = v.value;
+
+            const errDiv = document.createElement("div");
+            errDiv.className = "template-error-message";
+            errDiv.style.display = "none";
+
+            const validate = () => {
+              const result = Utils.validateVariableValue(textarea.value, v.type);
+              if (!result.ok) {
+                errDiv.textContent = result.error;
+                errDiv.style.display = "block";
+                textarea.style.borderColor = "#b00020";
+              } else {
+                errDiv.style.display = "none";
+                textarea.style.borderColor = "";
+              }
+            };
+
+            textarea.oninput = e => {
+              State.globalVariables[i].value = e.target.value;
+              validate();
+            };
+
+            row.append(topDiv, textarea, errDiv);
+            validate(); // Initial validation
+            container.appendChild(row);
+          });
+        },
+
+        addTest(data = null) {
+          const id = State.nextTestId++;
+          const test = {
+            enabled: true, name: `Test ${id}`, repeat: 1, variables: [{ name: "", value: "", type: "Text" }], expectedResponse: "", variablesExpanded: true,
+            ...data,
+            id
+          };
+          State.tests.push(test);
+          this.renderTests();
+        },
+
+        renderTests() {
+          const tbody = this.Elements.results;
+          if (!tbody) return;
+          tbody.innerHTML = "";
+
+          if (State.tests.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;">No tests added yet.</td></tr>';
+            return;
+          }
+
+          State.tests.forEach((test, tIdx) => {
+            const summary = State.runSummaries.find(s => s.testId === test.id);
+            const row = document.createElement("tr");
+
+            let timeStr = "n/a";
+            let passScore = "0/0";
+            let responseText = "";
+            let respCls = "";
+
+            if (summary) {
+              timeStr = summary.requestSamples > 0 ? `${(summary.minRequestMs / 1000).toFixed(1)} / ${(summary.avgRequestMs / 1000).toFixed(1)} / ${(summary.maxRequestMs / 1000).toFixed(1)}` : "n/a";
+              passScore = `${summary.passCount}/${summary.totalRuns}`;
+              responseText = summary.responseText || "";
+              respCls = summary.responseState ? `response-cell--${summary.responseState}` : "";
+            }
+
+            row.innerHTML = `
+                <td onclick="event.stopPropagation()"><input type="checkbox" class="t-enable" ${test.enabled ? "checked" : ""}></td>
+                <td>${Utils.escapeHtml(test.name)}</td>
+                <td onclick="event.stopPropagation()"><input type="number" class="t-repeat" min="1" value="${test.repeat}" style="width: 60px;"></td>
+                <td>${passScore}</td>
+                <td>${timeStr}</td>
+                <td class="response-cell ${respCls}">${Utils.escapeHtml(responseText)}</td>
+                <td class="test-actions-cell" onclick="event.stopPropagation()">
+                  <button class="secondary small t-edit">Edit</button>
+                  <button class="secondary small t-dup">Dup</button>
+                  <button class="secondary small t-del" style="background:#d9534f">Del</button>
+                </td>
+            `;
+
+            row.onclick = () => {
+              if (summary) {
+                [...tbody.children].forEach(c => c.classList.remove("selected"));
+                row.classList.add("selected");
+                this.renderDetails(summary);
+                document.getElementById('test-details-modal').showModal();
+              } else {
+                this.editTest(test, tIdx);
+              }
+            };
+
+            row.querySelector(".t-enable").onchange = e => { test.enabled = e.target.checked; };
+            row.querySelector(".t-repeat").onchange = e => { test.repeat = Math.max(1, parseInt(e.target.value) || 1); };
+            row.querySelector(".t-edit").onclick = () => this.editTest(test, tIdx);
+            row.querySelector(".t-dup").onclick = () => this.addTest(Utils.clone(test));
+            row.querySelector(".t-del").onclick = () => {
+              State.tests.splice(tIdx, 1);
+              this.renderTests();
+            };
+
+            tbody.appendChild(row);
+          });
+        },
+
+        editTest(test, tIdx) {
+          const modal = document.getElementById('test-details-modal');
+          const container = document.getElementById("details-content");
+          container.innerHTML = "";
+
+          // Clone the test object to buffer changes
+          const testClone = Utils.clone(test);
+
+          const card = document.createElement("div");
+          card.className = "test-card";
+          card.style.border = "none";
+          card.style.background = "transparent";
+          card.innerHTML = `
+             <div class="test-card-header">
+               <strong>ID ${testClone.id}</strong>
+               <div style="flex:1; min-width: 200px;"><input type="text" value="${Utils.escapeHtml(testClone.name)}" class="t-name" placeholder="Test Name"></div>
+             </div>
+             <div class="expected-container">
+               <label>Expected response</label>
+               <textarea class="t-expected" placeholder="Expected output for evaluation" rows="2">${Utils.escapeHtml(testClone.expectedResponse)}</textarea>
+             </div>
+             <div class="variables">
+                <div class="variables-header"><h4>Variables</h4> <div class="variables-header-actions"><button class="secondary small t-getvars" title="Get variables names from Nunjucks print tags">Get prompt vars</button></div></div>
+               <div class="variables-list"></div>
+               <div class="variables-actions"><button class="add-variable-btn t-addvar">Add variable</button></div>
+             </div>
+          `;
+
+          const refreshVarList = () => {
+            const varList = card.querySelector(".variables-list");
+            varList.innerHTML = "";
+            testClone.variables.forEach((v, vIdx) => {
+              const row = document.createElement("div");
+              row.className = "variable-row";
+              row.innerHTML = `
+                  <div class="variable-row-top">
+                    <input type="text" placeholder="name" value="${Utils.escapeHtml(v.name)}" class="v-name">
+                    <select class="v-type"><option value="Text">Text</option><option value="JSON">JSON</option></select>
+                    <button class="v-del">Remove</button>
+                  </div>
+                  <textarea placeholder="value" class="v-val" style="height: 80px;">${Utils.escapeHtml(v.value)}</textarea>
+                  <div class="template-error-message" style="display:none;"></div>
+                `;
+
+              row.querySelector(".v-type").value = v.type || "Text";
+              row.querySelector(".v-name").oninput = e => v.name = e.target.value;
+              row.querySelector(".v-type").onchange = e => v.type = e.target.value;
+              row.querySelector(".v-val").oninput = e => v.value = e.target.value;
+              row.querySelector(".v-del").onclick = () => {
+                testClone.variables.splice(vIdx, 1);
+                refreshVarList();
+              };
+              varList.appendChild(row);
+            });
+          };
+
+          card.querySelector(".t-name").oninput = e => { testClone.name = e.target.value; };
+          card.querySelector(".t-expected").oninput = e => { testClone.expectedResponse = e.target.value; };
+          card.querySelector(".t-addvar").onclick = () => {
+            testClone.variables.push({ name: "", value: "", type: "Text" });
+            refreshVarList();
+          };
+
+          card.querySelector(".t-getvars").onclick = () => {
+            const vars = Utils.extractTemplateVariables(State.request.developerMessage);
+            const existing = new Set(testClone.variables.map(v => v.name));
+            let added = false;
+            vars.forEach(name => {
+              if (!existing.has(name)) { testClone.variables.push({ name, value: "", type: "Text" }); added = true; }
+            });
+            if (added) refreshVarList();
+          };
+
+          refreshVarList();
+          container.appendChild(card);
+
+          // OK / Cancel Footer
+          const footer = document.createElement("div");
+          footer.className = "modal-footer";
+
+          const cancelBtn = document.createElement("button");
+          cancelBtn.textContent = "Cancel";
+          cancelBtn.className = "secondary";
+          cancelBtn.onclick = () => modal.close();
+
+          const okBtn = document.createElement("button");
+          okBtn.textContent = "OK";
+          okBtn.onclick = () => {
+            // Apply changes back to state
+            Object.assign(test, testClone);
+            this.renderTests();
+            modal.close();
+          };
+
+          footer.append(cancelBtn, okBtn);
+          container.appendChild(footer);
+
+          modal.showModal();
+        },
+
+        renderResults() {
+          // No longer used separately as it's merged into renderTests
+          this.renderTests();
+        },
+
+        // render test details
+        renderDetails(summary) {
+          const container = document.getElementById("details-content");
+          container.innerHTML = "";
+          const title = document.createElement("h3");
+          title.textContent = summary.testName;
+          container.appendChild(title);
+
+          const addSection = (label, content, isPre = false) => {
+            if (!content) return;
+            const det = document.createElement("details");
+            det.innerHTML = `<summary>${label}</summary><pre>${isPre ? Utils.escapeHtml(content) : content}</pre>`;
+            container.appendChild(det);
+          };
+
+          let devPrompt = summary.developerPrompt;
+          if (!devPrompt && summary.runs.length) devPrompt = summary.runs.find(r => r.developerPrompt)?.developerPrompt;
+          addSection("Developer Prompt", devPrompt, true);
+
+          // Runs
+          if (!summary.runs.length) return;
+
+          summary.runs.forEach(run => {
+            const div = document.createElement("div");
+            div.className = "run-detail";
+            const statusClass = run.status === "pass" ? "pass" : (run.status === "fail" ? "fail" : "unknown");
+
+            let tokensHtml = "";
+            if (run.tokens && (run.tokens.input != null)) {
+              tokensHtml = `<span class="request-duration" title="Input / Cached / Reasoning / Output">${run.tokens.input} / ${run.tokens.cached || 0} / ${run.tokens.reasoning || 0} / ${run.tokens.output || 0}</span>`;
+            }
+
+            div.innerHTML = `
+                <div class="run-detail-header">
+                    <div class="run-detail-meta">
+                        <span>Run ${run.index}</span>
+                        <span class="status-badge ${statusClass}">${run.status}</span>
+                        <span class="request-duration">${(run.requestDurationMs / 1000).toFixed(2)}s</span>
+                        ${tokensHtml}
+                    </div>
+                </div>
+                ${run.reason ? `<p><strong>Judge:</strong> ${Utils.escapeHtml(run.reason)}</p>` : ""}
+                ${run.error ? `<p class="error">Error: ${Utils.escapeHtml(run.error)}</p>` : ""}
+            `;
+
+            if (run.rawResponse) {
+              const det = document.createElement("details");
+              det.open = true;
+              det.innerHTML = `<summary>Raw Response</summary><pre>${Utils.escapeHtml(run.rawResponse)}</pre>`;
+              div.appendChild(det);
+            }
+            container.appendChild(div);
+          });
+
+          // Footer for Results
+          const footer = document.createElement("div");
+          footer.className = "modal-footer";
+          const closeBtn = document.createElement("button");
+          closeBtn.textContent = "Close";
+          closeBtn.onclick = () => document.getElementById('test-details-modal').close();
+          footer.appendChild(closeBtn);
+          container.appendChild(footer);
+        },
+
+        saveConfig() {
+          const data = {
+            version: 8,
+            savedAt: new Date().toISOString(),
+            // ... serialize state ...
+            provider: Providers.getActive(),
+            // Capture provider settings
+            openaiBaseUrl: Providers.openai.getBaseUrl(),
+            apiType: Providers.openai.getApiType(),
+            geminiBaseUrl: Providers.gemini.getBaseUrl(),
+            geminiModel: Providers.gemini.getModel(),
+            geminiJudgeModel: Providers.gemini.getJudgeModel(),
+            judgeModel: Providers.openai.getJudgeModel(),
+            ...State
+          };
+          const filename = `prompt-tests-${Utils.timestampSlug()}.json`;
+          const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+          const link = document.createElement("a");
+          link.href = URL.createObjectURL(blob);
+          link.download = filename;
+          link.click();
+          const saveBtn = document.getElementById("save-config");
+          if (saveBtn) saveBtn.title = `Saved "${filename}"`;
+        },
+
+        loadConfig(e) {
+          const file = e.target.files?.[0];
+          if (!file) return;
+          const r = new FileReader();
+          r.onload = evt => {
+            try {
+              const d = JSON.parse(evt.target.result);
+              this.applyConfig(d);
+              this.setStatus("Loaded configuration.", "success");
+              const loadBtn = document.getElementById("load-config");
+              if (loadBtn) loadBtn.title = `Loaded "${file.name}"`;
+            } catch (err) { this.setStatus("Failed to load config.", "error"); }
+          };
+          r.readAsText(file);
+          e.target.value = '';
+        },
+
+        applyConfig(data) {
+          let detectedProvider = "openai";
+
+          // Backward compatibility for " - JSON" roles
+          if (data.request && Array.isArray(data.request.messages)) {
+            data.request.messages.forEach(m => {
+              if (typeof m.role === "string" && m.role.endsWith(" - JSON")) {
+                try {
+                  const baseRole = m.role.slice(0, -7);
+                  const parsedContent = JSON.parse(m.content);
+                  // Simple heuristic to detect Gemini: role 'model' or presence of gemini props
+                  const isGemini = baseRole === "model" || data.provider === "gemini" || !!data.geminiModel;
+                  if (isGemini) detectedProvider = "gemini";
+
+                  const innerObject = isGemini
+                    ? { role: baseRole, parts: [parsedContent] }
+                    : { role: baseRole, content: parsedContent };
+
+                  m.role = "JSON";
+                  m.content = JSON.stringify(innerObject);
+                } catch (e) {
+                  console.warn("Failed to migrate ' - JSON' role:", e);
+                }
+              }
+            });
+          }
+
+          if (data.request) {
+            State.request = data.request;
+            // Backward compatibility
+            if (data.request.parameters && !data.request.llm_request_body) {
+              State.request.llm_request_body = data.request.parameters;
+              delete State.request.parameters;
+            }
+          }
+          if (data.tests) {
+            State.tests = data.tests.map(t => ({
+              ...t,
+              variables: (t.variables || []).map(v => ({ type: "Text", ...v }))
+            }));
+          }
+          if (data.nextTestId) {
+            State.nextTestId = data.nextTestId;
+          } else if (State.tests.length > 0) {
+            State.nextTestId = Math.max(...State.tests.map(t => t.id || 0)) + 1;
+          } else {
+            State.nextTestId = 1;
+          }
+          if (data.runSummaries) State.runSummaries = data.runSummaries;
+          // ... hydrate other fields ...
+          if (data.globalVariables) {
+            State.globalVariables = data.globalVariables.map(v => ({ type: "Text", ...v }));
+          }
+          if (data.judgePrompt) State.judgePrompt = data.judgePrompt;
+          if (data.judgeSystemPrompt) State.judgeSystemPrompt = data.judgeSystemPrompt;
+          if (typeof data.judgeEnabled == 'boolean') State.judgeEnabled = data.judgeEnabled;
+
+          // Restore document inputs
+          // Restore document inputs
+          if (this.llmRequestBodyEditor) {
+            const val = typeof State.request.llm_request_body === 'string' ? State.request.llm_request_body : JSON.stringify(State.request.llm_request_body, null, 2);
+            this.llmRequestBodyEditor.setValue(val);
+          }
+          if (this.devPromptEditor) {
+            this.devPromptEditor.setValue(State.request.developerMessage);
+          }
+          document.getElementById("judge-prompt").value = State.judgePrompt;
+          document.getElementById("judge-system-prompt").value = State.judgeSystemPrompt;
+
+          // Provider specific
+          const providerToSet = data.provider || detectedProvider;
+          if (providerToSet) {
+            Providers.setActive(providerToSet);
+          }
+
+          if (data.openaiBaseUrl) Providers.openai.setBaseUrl(data.openaiBaseUrl);
+          if (data.geminiBaseUrl) Providers.gemini.setBaseUrl(data.geminiBaseUrl);
+          if (data.geminiModel) Providers.gemini.setModel(data.geminiModel);
+          if (data.geminiJudgeModel) Providers.gemini.setJudgeModel(data.geminiJudgeModel);
+          if (data.judgeModel) Providers.openai.setJudgeModel(data.judgeModel);
+          if (data.apiType) Providers.openai.setApiType(data.apiType);
+
+          this.updateProviderUI();
+          this.updateJudgeUI();
+          this.renderGlobalVars();
+          this.renderTests();
+        },
+
+        extractFromRequestBody() {
+          const text = this.llmRequestBodyEditor ? this.llmRequestBodyEditor.getValue() : "";
+          const json = Utils.safeJsonParse(text);
+          if (!json) { this.setStatus("Invalid JSON in Request Body", "error"); return; }
+
+          let msgs = [], dev = "";
+
+          // Detection Logic
+          if (json.messages) { // Chat Completions (OpenAI)
+            Providers.setActive('openai');
+            Providers.openai.setApiType('completions');
+
+            dev = json.messages.find(m => m.role === "system" || m.role === "developer")?.content || "";
+            msgs = json.messages.filter(m => m.role !== "system" && m.role !== "developer");
+            delete json.messages;
+          } else if (json.contents) { // Gemini
+            Providers.setActive('gemini');
+
+            if (json.system_instruction) dev = json.system_instruction.parts?.[0]?.text || "";
+
+            // Parse contents. If parts > 1 or not simple text, we'll let the generic handler catch it as JSON
+            msgs = json.contents.map(c => {
+              // Try to extract simple text
+              if (c.parts && c.parts.length === 1 && c.parts[0].text && Object.keys(c.parts[0]).length === 1) {
+                return { role: c.role, content: c.parts[0].text };
+              }
+              // Otherwise return raw object to be caught by complex handler
+              return c;
+            });
+
+            delete json.contents;
+            delete json.system_instruction;
+          } else if (json.input) { // Response format (OpenAI)
+            Providers.setActive('openai');
+            Providers.openai.setApiType('responses');
+
+            if (json.instructions) {
+              dev = json.instructions;
+              msgs = json.input;
+              delete json.instructions;
+            } else {
+              dev = json.input.find(m => m.role === "system" || m.role === "developer")?.content || "";
+              msgs = json.input.filter(m => m.role !== "system" && m.role !== "developer");
+            }
+            delete json.input;
+          }
+
+          // Handle non-text / complex content (e.g. JSON objects)
+          msgs = msgs.map(m => {
+            // Logic:
+            // 1. If we already detected it (e.g. stringified content), check format
+            // 2. If it's a "simple" message ({role, content} where content is string), keep it
+            // 3. If it has extra keys OR content is not string OR missing basic keys -> Treat as "JSON"
+
+            // Check keys
+            const keys = Object.keys(m);
+            const hasExtraKeys = keys.some(k => k !== "role" && k !== "content");
+            const isSimple = !hasExtraKeys && typeof m.content === "string" && typeof m.role === "string";
+
+            if (!isSimple) {
+              const r = "JSON";
+              const provider = Providers.getCurrent();
+              if (!provider.roles.includes(r)) {
+                provider.roles.push(r);
+              }
+              // Content is the whole message stringified
+              return { role: r, content: JSON.stringify(m, null, 2) };
+            }
+            return m;
+          });
+
+          State.request.developerMessage = dev;
+          State.request.messages = msgs;
+
+          // Update body to remove extracted parts
+          const cleanedJson = JSON.stringify(json, null, 2);
+          State.request.llm_request_body = cleanedJson;
+
+          if (this.llmRequestBodyEditor) {
+            this.llmRequestBodyEditor.setValue(cleanedJson);
+          }
+
+          if (this.devPromptEditor) {
+            this.devPromptEditor.setValue(dev);
+          }
+          this.renderMessages();
+          this.setStatus("Extracted!", "success");
+        },
+
+        validateTemplate(id) {
+          let value = "";
+          if (id === 'developer-prompt') {
+            value = this.devPromptEditor ? this.devPromptEditor.getValue() : State.request.developerMessage;
+          } else if (id === 'llm-request-body') {
+            value = this.llmRequestBodyEditor ? this.llmRequestBodyEditor.getValue() : State.request.llm_request_body;
+          } else {
+            const el = document.getElementById(id);
+            if (!el) return;
+            value = el.value;
+          }
+          const shouldCheckJson = (id === 'llm-request-body');
+
+          const res = Utils.validate(value, shouldCheckJson);
+
+          const heading = document.getElementById(id + "-heading"); // convention
+          const err = document.getElementById(id + "-error");
+
+          if (heading) {
+            heading.classList.toggle("template-error", !res.ok);
+            heading.classList.toggle("template-ok", res.ok);
+          }
+          if (err) {
+            if (res.ok) {
+              err.style.display = "none";
+              delete err.dataset.baseError;
+            } else {
+              err.style.display = "block";
+              err.dataset.baseError = res.error || "Error";
+              this.updateCursorInfo(id);
+            }
+          }
+
+          if (id === 'llm-request-body' || id === 'developer-prompt') {
+            const tabBtnId = id === 'llm-request-body' ? 'tab-btn-llm-request' : 'tab-btn-developer-prompt';
+            if (res.ok) {
+              this.updateTabButtonStatus(tabBtnId, "", false);
+            } else {
+              this.updateTabButtonStatus(tabBtnId, "ERROR", true);
+            }
+          }
+        },
+
+        updateCursorInfo(id) {
+          const err = document.getElementById(id + "-error");
+          if (!err || err.style.display === "none" || !err.dataset.baseError) return;
+
+          if (id === 'developer-prompt') {
+            if (!this.devPromptEditor) return;
+            const cursor = this.devPromptEditor.getCursor();
+            err.textContent = `${err.dataset.baseError}\nCurrently at line ${cursor.line + 1} column ${cursor.ch + 1}`;
+            return;
+          }
+
+          if (id === 'llm-request-body') {
+            if (!this.llmRequestBodyEditor) return;
+            const cursor = this.llmRequestBodyEditor.getCursor();
+            err.textContent = `${err.dataset.baseError}\nCurrently at line ${cursor.line + 1} column ${cursor.ch + 1}`;
+            return;
+          }
+
+          const el = document.getElementById(id);
+          if (!el) return;
+
+          const val = el.value.substring(0, el.selectionStart);
+          const lines = val.split("\n");
+          const line = lines.length;
+          const col = lines[lines.length - 1].length + 1;
+
+          err.textContent = `${err.dataset.baseError}\nCurrently at line ${line} column ${col}`;
+        }
+      };
+
+      /**
+       * =========================================
+       * Test Runner
+       * =========================================
+       */
+      const TestRunner = {
+        async run() {
+          if (State.isRunning) return;
+
+          // Clean out current test results and details
+          State.runSummaries = [];
+          UI.renderResults();
+          const detailsContainer = document.getElementById("details-content");
+          if (detailsContainer) {
+            detailsContainer.innerHTML = "Select a test run to inspect its responses.";
+          }
+          const provider = Providers.getCurrent();
+
+          // Validation
+          if (!provider.getKey()) { UI.setStatus("API Key missing", "error"); return; }
+
+          const activeTests = State.tests.filter(t => t.enabled);
+          if (activeTests.length === 0) {
+            UI.setStatus("No enabled tests.", "error");
+            State.isRunning = false;
+            return;
+          }
+
+          State.isRunning = true;
+          UI.setStatus("Running tests...");
+          UI.updateTabButtonStatus("tab-btn-tests", "Running...");
+
+          // Initialize summaries for existing (enabled) tests so they persist in the table
+          activeTests.forEach(t => {
+            const existing = State.runSummaries.find(s => s.testId === t.id);
+            if (!existing) {
+              State.runSummaries.push({
+                testId: t.id,
+                testName: t.name,
+                passCount: 0,
+                totalRuns: 0,
+                runs: [],
+                requestSamples: 0,
+                minRequestMs: Infinity, maxRequestMs: 0, totalRequestMs: 0, avgRequestMs: 0
+              });
+            } else {
+              // Reset if they choose to re-run? 
+              // For simplicity, let's reset summaries of tests we are about to run
+              Object.assign(existing, {
+                testName: t.name,
+                passCount: 0,
+                totalRuns: 0,
+                runs: [],
+                requestSamples: 0,
+                minRequestMs: Infinity, maxRequestMs: 0, totalRequestMs: 0, avgRequestMs: 0,
+                responseText: "",
+                responseState: ""
+              });
+            }
+          });
+
+          UI.renderTests(); // Update progress visibility via table
+
+          // Execution Queue
+          const queue = [];
+          activeTests.forEach(t => {
+            const sIdx = State.runSummaries.findIndex(s => s.testId === t.id);
+            for (let i = 1; i <= t.repeat; i++) queue.push({ test: t, summaryIdx: sIdx, runIndex: i });
+          });
+
+          const worker = async () => {
+            while (queue.length) {
+              const job = queue.shift();
+              await this.runSingleTest(job.test, job.summaryIdx, job.runIndex, provider);
+              UI.renderTests(); // Update progress
+            }
+          };
+
+          await Promise.all(Array(CONSTANTS.MAX_CONCURRENT_REQUESTS).fill(0).map(worker));
+
+          State.isRunning = false;
+          UI.setStatus("Tests completed.", "success");
+          UI.updateTabButtonStatus("tab-btn-tests", "Done");
+        },
+
+        async runSingleTest(test, summaryIdx, runIndex, provider) {
+          const summary = State.runSummaries[summaryIdx];
+          const vars = { ...this.getGlobalVarsMap(), ...this.getTestVarsMap(test) };
+
+          // Hydrate templates
+          let dev = Utils.renderTemplate(State.request.developerMessage, vars);
+          let msgs = State.request.messages.map(m => ({ role: m.role, content: Utils.renderTemplate(m.content, vars) }));
+          let llm_req_body = Utils.renderTemplate(State.request.llm_request_body, vars);
+
+          let result = { status: "unknown", raw: "", error: null, tokens: null, requestDurationMs: 0 };
+
+          try {
+            const pJson = JSON.parse(llm_req_body);
+            const callRes = await provider.call({ llm_body: pJson, developer: dev, messages: msgs });
+            result.raw = callRes.raw;
+            result.tokens = callRes.tokenUsage;
+            result.requestDurationMs = callRes.requestDurationMs;
+
+            if (State.judgeEnabled && test.expectedResponse && test.expectedResponse.trim()) {
+              const jRes = await provider.judge({
+                expected: test.expectedResponse,
+                actual: result.raw,
+                judgePrompt: State.judgePrompt,
+                judgeSystemPrompt: State.judgeSystemPrompt
+              });
+              result.status = jRes.pass ? "pass" : "fail";
+              result.reason = jRes.explanation;
+            } else if (!(test.expectedResponse && test.expectedResponse.trim())) {
+              result.status = "unknown";
+              result.reason = "No expected response provided."
+            } else {
+              result.status = "unknown";
+            }
+          } catch (e) {
+            result.status = "error";
+            result.error = e.message;
+            result.requestDurationMs = e.__requestDurationMs || 0;
+          }
+
+          // Update Summary
+          summary.totalRuns++;
+          if (result.status === "pass") summary.passCount++;
+
+          summary.requestSamples++;
+          summary.totalRequestMs += result.requestDurationMs;
+          summary.minRequestMs = Math.min(summary.minRequestMs, result.requestDurationMs);
+          summary.maxRequestMs = Math.max(summary.maxRequestMs, result.requestDurationMs);
+          summary.avgRequestMs = summary.totalRequestMs / summary.requestSamples;
+
+          if (!summary.responseText) {
+            summary.responseText = result.error ? `Error: ${result.error}` : result.raw;
+            if (result.status === "pass") summary.responseState = "correct";
+            else if (result.status === "fail" || result.status === "error") summary.responseState = "wrong";
+          } else if (summary.responseState !== "wrong" && (result.status === "fail" || result.status === "error")) {
+            // Overwrite if we find a failure
+            summary.responseText = result.error || result.raw;
+            summary.responseState = "wrong";
+          }
+
+          summary.runs.push({
+            index: runIndex,
+            status: result.status,
+            rawResponse: result.raw,
+            error: result.error,
+            reason: result.reason,
+            tokens: result.tokens,
+            requestDurationMs: result.requestDurationMs,
+            developerPrompt: dev
+          });
+
+          // Sort runs by index for display consistency
+          summary.runs.sort((a, b) => a.index - b.index);
+        },
+
+        getGlobalVarsMap() {
+          return State.globalVariables.reduce((acc, v) => {
+            const value = v.type === "JSON" ? (Utils.safeJsonParse(v.value) || v.value) : v.value;
+            return { ...acc, [v.name]: value };
+          }, {});
+        },
+        getTestVarsMap(test) {
+          return test.variables.reduce((acc, v) => {
+            const value = v.type === "JSON" ? (Utils.safeJsonParse(v.value) || v.value) : v.value;
+            return { ...acc, [v.name]: value };
+          }, {});
+        }
+      };
+
+      /**
+       * =========================================
+       * Boot
+       * =========================================
+       */
+      async function init() {
+
+        // Restore from Storage
+        Providers.openai.setKey(Storage.get('openaiApiKey'));
+        Providers.openai.setBaseUrl(Storage.get('openaiBaseUrl', 'string', CONSTANTS.DEFAULT_OPENAI_BASE_URL));
+        Providers.openai.setJudgeModel(Storage.get('openaiJudgeModel', 'string', 'gpt-5'));
+
+        Providers.gemini.setKey(Storage.get('geminiApiKey'));
+        Providers.gemini.setBaseUrl(Storage.get('geminiBaseUrl', 'string', CONSTANTS.DEFAULT_GEMINI_BASE_URL));
+        Providers.gemini.setModel(Storage.get('geminiModel', 'string', 'gemini-2.5-flash'));
+        Providers.gemini.setJudgeModel(Storage.get('geminiJudgeModel', 'string', 'gemini-2.5-pro'));
+
+        State.judgeEnabled = Storage.get('judgeEnabled', 'boolean', true);
+        State.judgePrompt = CONSTANTS.DEFAULT_JUDGE_PROMPT;
+        State.judgeSystemPrompt = CONSTANTS.DEFAULT_JUDGE_SYSTEM_PROMPT;
+
+        // Initial defaults
+        State.request.llm_request_body = '{\n  "model": "gpt-4o-mini"\n}';
+        State.request.developerMessage = '# Role\nYou are a helpful AI assistant.';
+        State.request.messages = [
+          { role: "assistant", content: "Hello, how can I help you?" },
+          { role: "user", content: "{{usr_msg}}" }
+        ];
+        // Default Test
+        UI.addTest({
+          name: "Hello", repeat: 1,
+          variables: [{ name: "usr_msg", value: "hi", type: "Text" }],
+          expectedResponse: "Hello, how can I help you?"
+        });
+
+        // Initial Sync to DOM
+        const dom = {
+          judgePrompt: document.getElementById("judge-prompt"),
+          judgeSys: document.getElementById("judge-system-prompt")
+        };
+
+        if (dom.judgePrompt) dom.judgePrompt.value = State.judgePrompt;
+        if (dom.judgeSys) dom.judgeSys.value = State.judgeSystemPrompt;
+        // llm-request-body initialized via CodeMirror below
+
+        UI.bindEvents();
+        UI.updateProviderUI(); // sets initial visibility
+        UI.updateJudgeUI();
+        UI.renderGlobalVars();
+        UI.renderMessages(); // Initial messages render
+
+        // Initialize CodeMirror on the developer-prompt-editor div
+        const devPromptContainer = document.getElementById('developer-prompt-editor');
+        if (typeof CodeMirror !== 'undefined' && devPromptContainer) {
+          // Shared Jinja states
+          const jinjaStates = {
+            jinja: [
+              { regex: /\}\}|\%\}/, token: "meta", pop: true },
+              { regex: /"(?:\\.|[^\\"])*"|'(?:\\.|[^\\'])*'/, token: "string-2" },
+              { regex: /\b(if|else|elif|endif|for|endfor|in|is|not|defined|and|or|true|false|none)\b/, token: "keyword" },
+              { regex: /\|\s*\w+/, token: "builtin" },
+              { regex: /\b\d+(\.\d+)?\b/, token: "number" },
+              { regex: /\b[a-zA-Z_]\w*\b/, token: "variable" },
+              { regex: /==|!=|<=|>=|<|>|\+|-|\*|\/|%/, token: "operator" },
+              { regex: /\s+/, token: null },
+              { regex: /./, token: null }
+            ],
+
+            jinjaComment: [
+              { regex: /#\}/, token: "comment", pop: true },
+              { regex: /./, token: "comment" }
+            ]
+          };
+
+          // XML + Jinja
+          CodeMirror.defineSimpleMode("jinja-xml", {
+            start: [
+              { regex: /\{#/, token: "comment", push: "jinjaComment" },
+              { regex: /\{\{|\{%/, token: "meta", push: "jinja" },
+              { regex: /<\/?[a-zA-Z][^>]*>/, token: "tag" },
+              { regex: /[^<{]+/, token: null }
+            ],
+            ...jinjaStates
+          });
+
+          // JSON + Jinja
+          CodeMirror.defineSimpleMode("jinja-json", {
+            start: [
+              { regex: /\{#/, token: "comment", push: "jinjaComment" },
+              { regex: /\{\{|\{%/, token: "meta", push: "jinja" },
+              { regex: /"(?:\\.|[^\\"])*"(?=\s*:)/, token: "property" },
+              { regex: /"/, token: "string", push: "jsonString" },
+              { regex: /\b-?\d+(\.\d+)?([eE][+-]?\d+)?\b/, token: "number" },
+              { regex: /\b(true|false|null)\b/, token: "atom" },
+              { regex: /[{}\[\],:]/, token: "bracket" },
+              { regex: /\s+/, token: null }
+            ],
+            jsonString: [
+              { regex: /\\./, token: "string" },
+              { regex: /\{\{|\{%/, token: "meta", push: "jinja" },
+              { regex: /"/, token: "string", pop: true },
+              { regex: /[^\\"{]+/, token: "string" },
+              { regex: /./, token: "string" }
+            ],
+            ...jinjaStates
+          });
+
+          // Developer Prompt Editor
+          const promptEditor = CodeMirror(devPromptContainer, {
+            value: State.request.developerMessage,
+            mode: 'jinja-xml',
+            lineNumbers: true,
+            lineWrapping: true,
+            inputStyle: "contenteditable",
+            spellcheck: true
+          });
+          UI.devPromptEditor = promptEditor;
+
+          // Sync changes back to State and trigger validation
+          promptEditor.on('change', (cm) => {
+            State.request.developerMessage = cm.getValue();
+            // Trigger validation manually since we don't have the input event on textarea anymore
+            UI.validateTemplate('developer-prompt');
+          });
+
+          // Update error message position on cursor move
+          promptEditor.on('cursorActivity', () => {
+            UI.updateCursorInfo('developer-prompt');
+          });
+
+          // LLM Request Body Editor
+          const requestBodyContainer = document.getElementById('llm-request-body-editor');
+          if (requestBodyContainer) {
+            const reqEditor = CodeMirror(requestBodyContainer, {
+              value: typeof State.request.llm_request_body === 'string' ? State.request.llm_request_body : JSON.stringify(State.request.llm_request_body, null, 2),
+              mode: 'jinja-json',
+              lineNumbers: true,
+              lineWrapping: true,
+              inputStyle: "contenteditable",
+              spellcheck: false // Usually JSON doesn't need spellcheck
+            });
+            UI.llmRequestBodyEditor = reqEditor;
+
+            reqEditor.on('change', (cm) => {
+              State.request.llm_request_body = cm.getValue();
+              UI.validateTemplate('llm-request-body');
+            });
+
+            reqEditor.on('cursorActivity', () => {
+              UI.updateCursorInfo('llm-request-body');
+            });
+
+            // Resizing observer for request body editor
+            const roReq = new ResizeObserver(() => {
+              reqEditor.refresh();
+            });
+            roReq.observe(requestBodyContainer);
+          }
+
+          // Handle dark mode changes dynamically
+          const darkModeMediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+          darkModeMediaQuery.addListener(() => {
+            if (UI.devPromptEditor) UI.devPromptEditor.refresh();
+            if (UI.llmRequestBodyEditor) UI.llmRequestBodyEditor.refresh();
+          });
+
+          // Enable vertical resizing observer
+          const ro = new ResizeObserver(() => {
+            promptEditor.refresh();
+          });
+          ro.observe(devPromptContainer);
+        }
+
+        // Initial check for spellcheck toggle
+        const spellcheckToggle = document.getElementById('spellcheck-toggle');
+        if (spellcheckToggle && UI.devPromptEditor) {
+          UI.devPromptEditor.getInputField().spellcheck = spellcheckToggle.checked;
+        }
+      }
+
+      init();
+
+    })();
+  </script>
+
+</body>
+
+</html>
