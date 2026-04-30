@@ -1083,6 +1083,7 @@
         color: #7d9cdf;
       }
     }
+
     /* ─── Help Tab ────────────────────────────────────── */
     #tab-help h2 {
       margin-top: 0;
@@ -1102,24 +1103,26 @@
     #tab-help p {
       line-height: 1.6;
       color: #444;
-      font-size: 1.05rem;
+      /*font-size: 1.05rem;*/
     }
 
-    #tab-help ul {
+    #tab-help ul,
+    #tab-help ol {
       padding-left: 1.2rem;
       margin-top: 1rem;
     }
 
     #tab-help li {
       margin-bottom: 0.8rem;
-      line-height: 1.5;
+      line-height: 1.2;
       color: #444;
     }
 
+    /*
     #tab-help li strong {
       color: #1a73e8;
     }
-
+*/
     #tab-help code {
       background: #f0f0f0;
       padding: 0.2rem 0.4rem;
@@ -1423,21 +1426,37 @@
       </div>
       <div id="tab-help" class="tab-panel">
         <div class="section-body">
-          <h2>Help & Overview</h2>
-          <p><strong>Prompt Tester</strong> is a powerful tool designed to help you iterate, test, and evaluate LLM prompts across different models and scenarios. It supports template-based prompt generation, automated testing, and AI-assisted evaluation.</p>
-
-          <h3>Quick Start Guide</h3>
+          <p><strong>Prompt Tester</strong> is BYOK (Bring Your Own Key) tool that helps you to build and evaluate LLM
+            prompts. Think of it as the Postman for LLMs.</p>
+          <h3>Main features:</h3>
           <ul>
-            <li><strong>Configure API Settings</strong>: Navigate to the <strong>Settings</strong> tab to enter your OpenAI or Gemini API key and select your preferred model.</li>
-            <li><strong>Create Templates</strong>: Use the <strong>LLM request</strong>, <strong>Developer prompt</strong>, or <strong>Messages</strong> tabs to define your prompt structure. Use <code>{{ variable_name }}</code> for dynamic content.</li>
-            <li><strong>Define Variables</strong>: In the <strong>Tests</strong> tab, add global variables or test-specific variables that will be injected into your templates.</li>
-            <li><strong>Manage Tests</strong>: Click <strong>Add test</strong> to create different scenarios. You can specify "Expected" answers for the judge to compare against.</li>
-            <li><strong>Execute & Analyze</strong>: Click <strong>Run tests</strong> in the header. Once finished, review the results table. Click any row to see the full request and response history.</li>
-            <li><strong>Persist Work</strong>: Use <strong>Save JSON</strong> to download your current setup and <strong>Load JSON</strong> to restore it later.</li>
+            <li>Template-based (<a href="https://mozilla.github.io/nunjucks/" target="_blank"
+                rel="noopener noreferrer">Nunjucks</a>)
+              prompt, messages and tests definitions for flexible testing</li>
+            <li>Parses raw OpenAI and Gemini payloads, automatically extracts the prompt and the messages</li>
+            <li>AI-assisted evaluation (judge)</li>
           </ul>
 
-          <h3>Template Syntax</h3>
-          <p>The app uses <a href="https://mozilla.github.io/nunjucks/" target="_blank" rel="noopener noreferrer">Nunjucks</a> for templating. You can use simple variable substitution, loops, and conditionals within your prompts.</p>
+          <h3>Quick Start Guide</h3>
+          <ol>
+            <li><strong>Configure API Settings</strong>: Navigate to the <strong>Settings</strong> tab to enter your
+              OpenAI or Gemini API key and select your preferred model.</li>
+            <li><strong>Create LLM Request</strong>: In the <strong>LLM request</strong> tab enter raw LLM request.
+              If you have your prompt and/or messages included into the payload you can extract them using
+              <strong>Extract prompt & messages</strong> button. Use <code>{{ variable_name }}</code> for dynamic
+              content.
+            </li>
+            <li><strong>Create the Prompt</strong>: In the <strong>Developer Prompt</strong> tab, enter your prompt.
+              Dynamic content is available via variables defined in the <strong>Tests</strong> tab.</li>
+            <li><strong>Create Messages</strong>: In the <strong>Messages</strong> tab, define the conversation.</li>
+            <li><strong>Create Tests</strong>: In the <strong>Tests</strong> tab define your tests.
+              You can specify "Expected" answers for the judge to compare against.</li>
+            <li><strong>Run Tests</strong>: Once finished, review the results table.
+              Click any row to see the full request and response history.</li>
+            <li><strong>Save / Restore Work</strong>: Use <strong>Save JSON</strong> to download your current setup and
+              <strong>Load JSON</strong> to restore it later.
+            </li>
+          </ol>
         </div>
       </div>
     </main>
