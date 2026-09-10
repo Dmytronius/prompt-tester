@@ -824,9 +824,12 @@
       margin: 0 0 0.75rem 0;
     }
 
+    /* First column (API key) is a fixed-width track so its width -
+     and the gap after it - stays constant as the window resizes; the
+     remaining columns keep sharing the leftover space equally. */
     .settings-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      grid-template-columns: 220px repeat(auto-fit, minmax(220px, 1fr));
       gap: 1rem;
       align-items: flex-start;
     }
@@ -846,6 +849,11 @@
     .api-key-row>.api-key-input-wrap {
       flex: 1 1 auto;
       min-width: 0;
+    }
+
+    /* Base URL fields get the extra room since URLs tend to run long. */
+    .settings-grid>.field-base-url {
+      grid-column: span 2;
     }
 
     .settings-actions {
@@ -1661,7 +1669,7 @@
               </label>
             </div>
             <div class="settings-grid">
-              <div>
+              <div class="field-api-key">
                 <label for="api-key">OpenAI API key</label>
                 <div class="api-key-row">
                   <div class="api-key-input-wrap">
@@ -1673,12 +1681,14 @@
                   </div>
                 </div>
               </div>
-              <div>
+              <div class="field-base-url">
                 <label for="openai-base-url">OpenAI Base URL</label>
                 <input id="openai-base-url" type="text" placeholder="https://api.openai.com/v1" autocomplete="off"
                   list="openai-base-urls" />
                 <datalist id="openai-base-urls">
                   <option value="https://api.openai.com/v1"></option>
+                  <option value="https://openrouter.ai/api/v1"></option>
+                  <option value="https://router.huggingface.co/v1"></option>
                 </datalist>
               </div>
               <div>
@@ -1721,7 +1731,7 @@
               </label>
             </div>
             <div class="settings-grid">
-              <div>
+              <div class="field-api-key">
                 <label for="gemini-api-key">Gemini API key</label>
                 <div class="api-key-row">
                   <div class="api-key-input-wrap">
@@ -1733,7 +1743,7 @@
                   </div>
                 </div>
               </div>
-              <div>
+              <div class="field-base-url">
                 <label for="gemini-base-url">Gemini Base URL</label>
                 <input id="gemini-base-url" type="text" placeholder="https://generativelanguage.googleapis.com/v1beta"
                   autocomplete="off" list="gemini-base-urls" />
