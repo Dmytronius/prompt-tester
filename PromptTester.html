@@ -1413,6 +1413,14 @@
       padding: 0.4rem 0.6rem;
     }
 
+    .audit-summary-title.audit-status-ok {
+      color: #198754;
+    }
+
+    .audit-summary-title.audit-status-error {
+      color: #d9534f;
+    }
+
     /* Audit button active state */
     #audit-panel-toggle.active {
       background: #1a73e8;
@@ -1627,7 +1635,7 @@
 
               <div class="audit-panel-content">
                 <details class="audit-section" open>
-                  <summary>Template</summary>
+                  <summary><span id="audit-summary-template" class="audit-summary-title">Template</span></summary>
                   <div class="audit-section-body">
                     <div id="developer-prompt-error" class="template-error-message" style="display:none;"></div>
                     <div id="developer-prompt-variables" class="audit-variables-list"></div>
@@ -1635,15 +1643,16 @@
                 </details>
 
                 <details class="audit-section">
-                  <summary>Tools</summary>
+                  <summary><span id="audit-summary-tools" class="audit-summary-title">Tools</span></summary>
                   <div id="audit-tools-list" class="audit-section-body">
                     <div class="audit-empty">No tools configured.</div>
                   </div>
                 </details>
 
                 <details class="audit-section">
-                  <summary>LLM Audit <button id="llm-audit-reaudit" type="button" class="secondary small"
-                      style="margin-left:auto" onclick="event.stopPropagation()">Re-audit</button></summary>
+                  <summary><span id="audit-summary-llm-audit" class="audit-summary-title">LLM Audit</span> <button
+                      id="llm-audit-reaudit" type="button" class="secondary small" style="margin-left:auto"
+                      onclick="event.stopPropagation()">Re-audit</button></summary>
                   <div class="audit-section-body">
                     <div id="llm-audit-results" class="llm-audit-results">
                       <div class="audit-empty">No audit results yet.</div>
@@ -3023,6 +3032,9 @@
             heading.classList.toggle("template-error", !res.ok);
             heading.classList.toggle("template-ok", res.ok);
           }
+          if (id === 'developer-prompt') {
+            AuditUI.setSectionStatus("audit-summary-template", res.ok ? "ok" : "error");
+          }
           if (err) {
             if (res.ok) {
               if (id === 'developer-prompt') {
@@ -3528,21 +3540,32 @@
           });
         },
 
+        setSectionStatus(elId, status) {
+          const el = document.getElementById(elId);
+          if (!el) return;
+          el.classList.remove("audit-status-ok", "audit-status-error");
+          if (status === "ok") el.classList.add("audit-status-ok");
+          else if (status === "error") el.classList.add("audit-status-error");
+        },
+
         setAuditToggleState(results) {
           const btn = document.getElementById("audit-panel-toggle");
           if (!btn) return;
-          btn.classList.remove("audit-state-ok", "audit-state-warn", "audit-state-error");
           if (!results || results.length === 0) {
+            btn.style.background = "";
             btn.title = "Toggle Prompt Audit panel";
+            this.setSectionStatus("audit-summary-tools", null);
             return;
           }
           const missing = results.filter(r => r.mentions.length === 0);
           if (missing.length === 0) {
-            btn.style.borderLeft = "3px solid #198754";
+            btn.style.background = "#198754";
             btn.title = "All tools are mentioned in the prompt";
+            this.setSectionStatus("audit-summary-tools", "ok");
           } else {
-            btn.style.borderLeft = "3px solid #d9534f";
+            btn.style.background = "#d9534f";
             btn.title = `${missing.length} tool(s) not mentioned in the prompt: ${missing.map(m => m.name).join(", ")}`;
+            this.setSectionStatus("audit-summary-tools", "error");
           }
         },
 
@@ -3632,8 +3655,10 @@
 
           if (!results || results.length === 0) {
             container.innerHTML = '<div class="audit-empty">No audit results yet.</div>';
+            this.setSectionStatus("audit-summary-llm-audit", null);
             return;
           }
+          this.setSectionStatus("audit-summary-llm-audit", "error");
 
           const order = { High: 0, Medium: 1, Low: 2 };
           const sorted = [...results].sort((a, b) => (order[a.severity] ?? 3) - (order[b.severity] ?? 3));
@@ -3661,6 +3686,7 @@
           if (!container) return;
           const message = (res && (res.error || res.raw)) || "Unknown error";
           container.innerHTML = `<div class="template-error-message" style="display:block;">${Utils.escapeHtml(message)}</div>`;
+          this.setSectionStatus("audit-summary-llm-audit", "error");
         }
       }; // End of AuditUI
 
