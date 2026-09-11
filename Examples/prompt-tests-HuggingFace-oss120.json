@@ -1,0 +1,135 @@
+{
+  "version": 7,
+  "savedAt": "2025-12-10T12:26:36.631Z",
+  "provider": "openai",
+  "apiType": "completions",
+  "geminiModel": "gemini-2.5-pro",
+  "geminiJudgeModel": "gemini-2.5-pro",
+  "openaiBaseUrl": "https://router.huggingface.co/v1",
+  "geminiBaseUrl": "https://generativelanguage.googleapis.com/v1beta",
+  "judgeModel": "gpt-5-mini:mid",
+  "judgePrompt": "You are judging whether an assistant response matches the expected answer. Reply with JSON \n\nExpected response:\n{{ expected }}\n\nAssistant response:\n{{ actual }}",
+  "judgeSystemPrompt": "Judge if the assistant response semantically matches the expected answer. Be strict about core facts.",
+  "judgeEnabled": false,
+  "request": {
+    "parameters": "{\n  \"model\": \"openai/gpt-oss-120b:groq\"\n}",
+    "developerMessage": "**Role**\nYou are a helpful assistant who knows shoe sizing conversions.\n\n**Help Center**\nSizing chart and conversion tables are available. Refer to them when asked about sizes.",
+    "messages": [
+      {
+        "role": "assistant",
+        "content": "Hello, how can I help you?"
+      },
+      {
+        "role": "user",
+        "content": "What would be EU size {{size}} in US?"
+      }
+    ]
+  },
+  "tests": [
+    {
+      "id": 1,
+      "enabled": false,
+      "name": "4.1 size 39",
+      "repeat": 3,
+      "variables": [
+        {
+          "name": "model",
+          "value": "gpt-4.1"
+        },
+        {
+          "name": "size",
+          "value": "39"
+        }
+      ],
+      "expectedResponse": "EU size 39 is equivalent to US size 10",
+      "variablesExpanded": false
+    },
+    {
+      "id": 2,
+      "enabled": false,
+      "name": "4.1 size 36",
+      "repeat": 1,
+      "variables": [
+        {
+          "name": "model",
+          "value": "gpt-4.1"
+        },
+        {
+          "name": "size",
+          "value": "36"
+        }
+      ],
+      "expectedResponse": "EU size 36 is equivalent to US size 9",
+      "variablesExpanded": false
+    },
+    {
+      "id": 3,
+      "enabled": true,
+      "name": "4.1-mini size 39",
+      "repeat": 1,
+      "variables": [
+        {
+          "name": "model",
+          "value": "gpt-4.1-mini"
+        },
+        {
+          "name": "size",
+          "value": "39"
+        }
+      ],
+      "expectedResponse": "EU size 39 is equivalent to US size 10",
+      "variablesExpanded": false
+    }
+  ],
+  "globalVariables": [],
+  "runSummaries": [
+    {
+      "testId": 3,
+      "testName": "4.1-mini size 39",
+      "developerPrompt": "**Role**\nYou are a helpful assistant who knows shoe sizing conversions.\n\n**Help Center**\nSizing chart and conversion tables are available. Refer to them when asked about sizes.",
+      "requestPayload": {
+        "endpoint": "chat/completions",
+        "body": {
+          "model": "openai/gpt-oss-120b:groq",
+          "messages": [
+            {
+              "role": "system",
+              "content": "**Role**\nYou are a helpful assistant who knows shoe sizing conversions.\n\n**Help Center**\nSizing chart and conversion tables are available. Refer to them when asked about sizes."
+            },
+            {
+              "role": "assistant",
+              "content": "Hello, how can I help you?"
+            },
+            {
+              "role": "user",
+              "content": "What would be EU size 39 in US?"
+            }
+          ]
+        }
+      },
+      "passCount": 0,
+      "totalRuns": 1,
+      "firstWrong": null,
+      "firstCorrect": null,
+      "minRequestMs": 1291.5,
+      "avgRequestMs": 1291.5,
+      "maxRequestMs": 1291.5,
+      "requestSamples": 1,
+      "runs": [
+        {
+          "index": 1,
+          "status": "unknown",
+          "rawResponse": "**EU 39 → U.S. size**\n\n| Category | Approx. U.S. size* |\n|----------|-------------------|\n| Women’s   | 8  (some brands list it as 8½) |\n| Men’s     | 6  (often shown as 6½) |\n| Youth/Teen| 7  (roughly) |\n\n\\*Shoe‑size conversions can vary a bit between manufacturers, so it’s always a good idea to check the specific brand’s size‑chart when possible.\n\n**Quick tip:** If you’re buying online and you’re between sizes, you’ll usually get the best fit by going a half‑size up (e.g., a U.S. 8 ½ for a women’s EU 39) especially for brands that run narrow.",
+          "reason": "Judge step disabled",
+          "requestDurationMs": 1291.5,
+          "tokens": {
+            "input": 132,
+            "cached": null,
+            "reasoning": 179,
+            "output": 353
+          }
+        }
+      ]
+    }
+  ]
+}
