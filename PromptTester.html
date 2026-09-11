@@ -1588,7 +1588,7 @@
           </defs>
         </svg>
       </a>
-      <span class="app-version" title="v1.1: Custom Headers + Prompt Audit">v1.1</span>
+      <span class="app-version" title="v1.2: Custom Headers + Prompt Audit">v1.2</span>
       <div class="header-controls">
         <div id="status" class="status-bar"></div>
         <button id="run-tests" type="button">Run tests</button>
@@ -1908,14 +1908,17 @@
       <div id="tab-help" class="tab-panel">
         <div class="section-body">
           <p><strong>Prompt Tester</strong> is BYOK (Bring Your Own Key) tool that helps you to build and evaluate LLM
-            prompts. Think of it as the Postman for LLMs.</p>
+            requests. Think of it as the Postman for LLMs.</p>
           <h3>Main features:</h3>
           <ul>
+            <li>One .html file application</li>
+            <li>Supports OpenAI (responses, completions) and Gemini protocols</li>
             <li>Template-based (<a href="https://mozilla.github.io/nunjucks/" target="_blank"
                 rel="noopener noreferrer">Nunjucks</a>)
               prompt, messages and tests definitions for flexible testing</li>
-            <li>Parses raw OpenAI and Gemini payloads, automatically extracts the prompt and the messages</li>
-            <li>AI-assisted evaluation (judge)</li>
+            <li>Extracts the prompt and the messages from raw OpenAI and Gemini request payloads</li>
+            <li>AI-assisted tests' evaluation (judge)</li>
+            <li>LLM Prompt Audit panel to analyze the prompt for issues</li>
           </ul>
 
           <h3>Quick Start Guide</h3>
@@ -1938,6 +1941,7 @@
               <strong>Load JSON</strong> to restore it later.
             </li>
           </ol>
+          <p>GitHub: <a href="https://github.com/Dmytronius/prompt-tester" target="_blank" rel="noopener noreferrer">https://github.com/Dmytronius/prompt-tester</a></p>
         </div>
       </div>
     </main>
