@@ -856,6 +856,70 @@
       grid-column: span 2;
     }
 
+    /* Custom combobox (input + toggle button + suggestion list) used for the
+     base URL fields. The list opens only via the toggle button (or ArrowDown)
+     and closes as soon as the user types, like a native <select>. */
+    .combobox {
+      position: relative;
+    }
+
+    .combobox>input {
+      padding-right: 2rem;
+    }
+
+    .combobox-toggle {
+      position: absolute;
+      top: 1px;
+      right: 1px;
+      bottom: 1px;
+      width: 1.9rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0;
+      border: none;
+      border-radius: 0 4px 4px 0;
+      background: none;
+      color: #555;
+      font-size: 0.7rem;
+      transition: none;
+    }
+
+    .combobox-toggle:hover {
+      background: rgba(0, 0, 0, 0.06);
+    }
+
+    .combobox-list {
+      position: absolute;
+      top: calc(100% + 2px);
+      left: 0;
+      right: 0;
+      z-index: 100;
+      margin: 0;
+      padding: 0.25rem 0;
+      list-style: none;
+      background: #fff;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+      max-height: 220px;
+      overflow-y: auto;
+    }
+
+    .combobox-list li {
+      padding: 0.4rem 0.6rem;
+      font-size: 0.9rem;
+      cursor: pointer;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .combobox-list li:hover,
+    .combobox-list li.active {
+      background: #e8f0fe;
+    }
+
     .settings-actions {
       display: flex;
       gap: 0.5rem;
@@ -907,6 +971,25 @@
         background: #2a2a2a;
         color: #f0f0f0;
         border-color: #444;
+      }
+
+      .combobox-toggle {
+        color: #aaa;
+      }
+
+      .combobox-toggle:hover {
+        background: rgba(255, 255, 255, 0.08);
+      }
+
+      .combobox-list {
+        background: #2a2a2a;
+        border-color: #444;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+      }
+
+      .combobox-list li:hover,
+      .combobox-list li.active {
+        background: #3a3a3a;
       }
 
       pre {
@@ -1683,13 +1766,18 @@
               </div>
               <div class="field-base-url">
                 <label for="openai-base-url">OpenAI Base URL</label>
-                <input id="openai-base-url" type="text" placeholder="https://api.openai.com/v1" autocomplete="off"
-                  list="openai-base-urls" />
-                <datalist id="openai-base-urls">
-                  <option value="https://api.openai.com/v1"></option>
-                  <option value="https://openrouter.ai/api/v1"></option>
-                  <option value="https://router.huggingface.co/v1"></option>
-                </datalist>
+                <div class="combobox" data-combobox>
+                  <input id="openai-base-url" type="text" placeholder="https://api.openai.com/v1" autocomplete="off"
+                    role="combobox" aria-autocomplete="list" aria-expanded="false"
+                    aria-controls="openai-base-url-list" />
+                  <button type="button" class="combobox-toggle" tabindex="-1"
+                    aria-label="Show suggestions">▼</button>
+                  <ul class="combobox-list" id="openai-base-url-list" role="listbox" hidden>
+                    <li role="option">https://api.openai.com/v1</li>
+                    <li role="option">https://openrouter.ai/api/v1</li>
+                    <li role="option">https://router.huggingface.co/v1</li>
+                  </ul>
+                </div>
               </div>
               <div>
                 <label for="judge-model">Judge model</label>
@@ -1745,11 +1833,17 @@
               </div>
               <div class="field-base-url">
                 <label for="gemini-base-url">Gemini Base URL</label>
-                <input id="gemini-base-url" type="text" placeholder="https://generativelanguage.googleapis.com/v1beta"
-                  autocomplete="off" list="gemini-base-urls" />
-                <datalist id="gemini-base-urls">
-                  <option value="https://generativelanguage.googleapis.com/v1beta"></option>
-                </datalist>
+                <div class="combobox" data-combobox>
+                  <input id="gemini-base-url" type="text"
+                    placeholder="https://generativelanguage.googleapis.com/v1beta" autocomplete="off"
+                    role="combobox" aria-autocomplete="list" aria-expanded="false"
+                    aria-controls="gemini-base-url-list" />
+                  <button type="button" class="combobox-toggle" tabindex="-1"
+                    aria-label="Show suggestions">▼</button>
+                  <ul class="combobox-list" id="gemini-base-url-list" role="listbox" hidden>
+                    <li role="option">https://generativelanguage.googleapis.com/v1beta</li>
+                  </ul>
+                </div>
               </div>
               <div>
                 <label for="gemini-model">Gemini model</label>
@@ -2600,7 +2694,7 @@
           document.getElementById("judge-prompt")?.addEventListener("input", (e) => { State.judgePrompt = e.target.value; });
           document.getElementById("judge-system-prompt")?.addEventListener("input", (e) => { State.judgeSystemPrompt = e.target.value; });
           document.getElementById("llm-audit-metaprompt")?.addEventListener("input", (e) => { State.llmAuditMetaPrompt = e.target.value; });
-          document.getElementById("llm-audit-reaudit")?.addEventListener("click", () => { if (typeof runLlmaudit === 'function') runLlmaudit(); });
+          document.getElementById("llm-audit-reaudit")?.addEventListener("click", () => this.runLlmaudit());
 
           document.getElementById("enable-judge")?.addEventListener("change", (e) => {
             State.judgeEnabled = e.target.checked;
@@ -3362,7 +3456,7 @@
           this.renderHeaders();
           this.renderTests();
           // Render any persisted LLM audit results
-          try { renderLlmaudit(State.llmAuditResults || []); } catch (e) { /* ignore if UI not ready */ }
+          try { this.renderLlmaudit(State.llmAuditResults || []); } catch (e) { /* ignore if UI not ready */ }
         },
 
         extractFromRequestBody() {
@@ -3621,125 +3715,207 @@
             btn.style.borderLeft = "3px solid #d9534f";
             btn.title = `${missing.length} tool(s) not mentioned in the prompt: ${missing.map(m => m.name).join(", ")}`;
           }
-        }
-      };
+        },
 
-      /**
-       * =========================================
-       * LLM Audit (prompt critique via judge model)
-       * =========================================
-       */
-      async function runLlmaudit() {
-        const provider = Providers.getCurrent();
-        const promptText = UI.devPromptEditor ? UI.devPromptEditor.getValue() : State.request.developerMessage;
-        const metaprompt = State.llmAuditMetaPrompt || CONSTANTS.DEFAULT_LLM_AUDIT_METAPROMPT;
+        /**
+         * =========================================
+         * LLM Audit (prompt critique via judge model)
+         * =========================================
+         */
+        async runLlmaudit() {
+          const provider = Providers.getCurrent();
+          const promptText = this.devPromptEditor ? this.devPromptEditor.getValue() : State.request.developerMessage;
+          const metaprompt = State.llmAuditMetaPrompt || CONSTANTS.DEFAULT_LLM_AUDIT_METAPROMPT;
 
-        let userContent = `<llm_prompt_to_analyze>\n${promptText}\n</llm_prompt_to_analyze>`;
+          let userContent = `<llm_prompt_to_analyze>\n${promptText}\n</llm_prompt_to_analyze>`;
 
-        const tools = provider.getTools ? provider.getTools() : null;
-        if (tools) {
-          userContent += `\n\n<llm_tools>\n${JSON.stringify(tools, null, 2)}\n</llm_tools>`;
-        }
+          const tools = provider.getTools ? provider.getTools() : null;
+          if (tools) {
+            userContent += `\n\n<llm_tools>\n${JSON.stringify(tools, null, 2)}\n</llm_tools>`;
+          }
 
-        const structOutput = provider.getStructOutput ? provider.getStructOutput() : null;
-        if (structOutput) {
-          userContent += `\n\n<llm_structured_output>\n${JSON.stringify(structOutput, null, 2)}\n</llm_structured_output>`;
-        }
+          const structOutput = provider.getStructOutput ? provider.getStructOutput() : null;
+          if (structOutput) {
+            userContent += `\n\n<llm_structured_output>\n${JSON.stringify(structOutput, null, 2)}\n</llm_structured_output>`;
+          }
 
-        const schema = {
-          type: "object",
-          properties: {
-            issues: {
-              type: "array",
-              items: {
-                type: "object",
-                properties: {
-                  severity: { type: "string", enum: ["Low", "Medium", "High"] },
-                  category: { type: "string", enum: ["conflict", "ambiguity", "inaccuracy", "redundancy", "gap", "other"] },
-                  problem: { type: "string" },
-                  evidence: { type: "string" },
-                  suggestion: { type: "string" }
-                },
-                required: ["severity", "category", "problem", "evidence", "suggestion"]
+          const schema = {
+            type: "object",
+            properties: {
+              issues: {
+                type: "array",
+                items: {
+                  type: "object",
+                  properties: {
+                    severity: { type: "string", enum: ["Low", "Medium", "High"] },
+                    category: { type: "string", enum: ["conflict", "ambiguity", "inaccuracy", "redundancy", "gap", "other"] },
+                    problem: { type: "string" },
+                    evidence: { type: "string" },
+                    suggestion: { type: "string" }
+                  },
+                  required: ["severity", "category", "problem", "evidence", "suggestion"]
+                }
               }
+            },
+            required: ["issues"]
+          };
+
+          this.setStatus("Running LLM Audit, may take a moment (~1min)...", "");
+          const reauditBtn = document.getElementById("llm-audit-reaudit");
+          if (reauditBtn) reauditBtn.disabled = true;
+
+          try {
+            const res = await provider.call_struct_output({
+              llm_body: { model: provider.getJudgeModel() },
+              developer: metaprompt,
+              messages: [{ role: "user", content: userContent }],
+              output_schema: schema
+            });
+
+            if (!res.success) {
+              State.llmAuditResults = [];
+              State.llmAuditRaw = res.raw;
+              this.renderLlmauditError(res);
+              this.setStatus("LLM Audit failed.", "error");
+              return;
             }
-          },
-          required: ["issues"]
-        };
 
-        UI.setStatus("Running LLM Audit, may take a moment (~1min)...", "");
-        const reauditBtn = document.getElementById("llm-audit-reaudit");
-        if (reauditBtn) reauditBtn.disabled = true;
-
-        try {
-          const res = await provider.call_struct_output({
-            llm_body: { model: provider.getJudgeModel() },
-            developer: metaprompt,
-            messages: [{ role: "user", content: userContent }],
-            output_schema: schema
-          });
-
-          if (!res.success) {
-            State.llmAuditResults = [];
+            const issues = Array.isArray(res.parsed) ? res.parsed : (res.parsed.issues || []);
+            State.llmAuditResults = issues;
             State.llmAuditRaw = res.raw;
-            renderLlmauditError(res);
-            UI.setStatus("LLM Audit failed.", "error");
+            this.renderLlmaudit(issues);
+            this.setStatus("LLM Audit complete.", "success");
+          } catch (err) {
+            const msg = err.message || String(err);
+            State.llmAuditResults = [];
+            State.llmAuditRaw = msg;
+            this.renderLlmauditError({ error: msg, raw: msg });
+            this.setStatus("LLM Audit failed.", "error");
+          } finally {
+            if (reauditBtn) reauditBtn.disabled = false;
+          }
+        },
+
+        renderLlmaudit(results) {
+          const container = document.getElementById("llm-audit-results");
+          if (!container) return;
+          container.innerHTML = "";
+
+          if (!results || results.length === 0) {
+            container.innerHTML = '<div class="audit-empty">No audit results yet.</div>';
             return;
           }
 
-          const issues = Array.isArray(res.parsed) ? res.parsed : (res.parsed.issues || []);
-          State.llmAuditResults = issues;
-          State.llmAuditRaw = res.raw;
-          renderLlmaudit(issues);
-          UI.setStatus("LLM Audit complete.", "success");
-        } catch (err) {
-          const msg = err.message || String(err);
-          State.llmAuditResults = [];
-          State.llmAuditRaw = msg;
-          renderLlmauditError({ error: msg, raw: msg });
-          UI.setStatus("LLM Audit failed.", "error");
-        } finally {
-          if (reauditBtn) reauditBtn.disabled = false;
+          const order = { High: 0, Medium: 1, Low: 2 };
+          const sorted = [...results].sort((a, b) => (order[a.severity] ?? 3) - (order[b.severity] ?? 3));
+          const colors = { High: "#d9534f", Medium: "#e0a800", Low: "#6c757d" };
+
+          sorted.forEach(issue => {
+            const color = colors[issue.severity] || "#6c757d";
+            const card = document.createElement("div");
+            card.style.cssText = "border:1px solid #e0e0e0; border-radius:5px; padding:0.6rem; margin-bottom:0.5rem;";
+            card.innerHTML = `
+              <div style="display:flex; align-items:center; gap:0.4rem; margin-bottom:0.3rem;">
+                <span class="status-badge" style="background:${color};">${Utils.escapeHtml(issue.severity || "")}</span>
+                <span style="font-size:0.75rem; color:#888; text-transform:uppercase;">${Utils.escapeHtml(issue.category || "")}</span>
+              </div>
+              <div style="font-weight:600; margin-bottom:0.3rem;">${Utils.escapeHtml(issue.problem || "")}</div>
+              ${issue.suggestion ? `<div style="font-size:0.85rem;">${Utils.escapeHtml(issue.suggestion)}</div>` : ""}
+              ${issue.evidence ? `<details style="margin-top:0.4rem;"><summary style="cursor:pointer; font-size:0.8rem;">Evidence</summary><div style="font-size:0.8rem; margin-top:0.3rem; white-space:pre-wrap;">${Utils.escapeHtml(issue.evidence)}</div></details>` : ""}
+            `;
+            container.appendChild(card);
+          });
+        },
+
+        renderLlmauditError(res) {
+          const container = document.getElementById("llm-audit-results");
+          if (!container) return;
+          const message = (res && (res.error || res.raw)) || "Unknown error";
+          container.innerHTML = `<div class="template-error-message" style="display:block;">${Utils.escapeHtml(message)}</div>`;
+        },
+
+        /**
+         * Turn a `[data-combobox]` wrapper (an <input>, a `.combobox-toggle`
+         * button and a <ul.combobox-list>) into a select-like suggestion
+         * dropdown. The list opens only via the toggle button (or
+         * ArrowDown) and closes as soon as the user types; the input stays
+         * freely editable.
+         */
+        setupCombobox(root) {
+          const input = root.querySelector("input");
+          const list = root.querySelector(".combobox-list");
+          const toggle = root.querySelector(".combobox-toggle");
+          if (!input || !list) return;
+          const options = Array.from(list.querySelectorAll("li"));
+          let activeIndex = -1;
+
+          function setActive(idx) {
+            activeIndex = idx;
+            options.forEach((li, i) => li.classList.toggle("active", i === idx));
+            if (idx >= 0 && options[idx]) options[idx].scrollIntoView({ block: "nearest" });
+          }
+
+          function open() {
+            list.hidden = false;
+            input.setAttribute("aria-expanded", "true");
+          }
+
+          function close() {
+            list.hidden = true;
+            input.setAttribute("aria-expanded", "false");
+            setActive(-1);
+          }
+
+          function choose(li) {
+            input.value = li.textContent;
+            close();
+            // Notify external listeners (e.g. base-URL persistence).
+            input.dispatchEvent(new Event("input", { bubbles: true }));
+            input.dispatchEvent(new Event("change", { bubbles: true }));
+          }
+
+          // Toggle button opens/closes the list, like a native <select>.
+          toggle?.addEventListener("mousedown", (e) => {
+            e.preventDefault(); // keep focus on the input
+            if (list.hidden) { open(); input.focus(); } else { close(); }
+          });
+
+          // Typing dismisses the list - the field is back to free text entry.
+          input.addEventListener("input", close);
+
+          input.addEventListener("keydown", (e) => {
+            if (e.key === "ArrowDown") {
+              e.preventDefault();
+              if (list.hidden) { open(); return; }
+              setActive(Math.min(activeIndex + 1, options.length - 1));
+            } else if (e.key === "ArrowUp") {
+              e.preventDefault();
+              if (list.hidden) return;
+              setActive(Math.max(activeIndex - 1, 0));
+            } else if (e.key === "Enter") {
+              if (!list.hidden && activeIndex >= 0 && options[activeIndex]) {
+                e.preventDefault();
+                choose(options[activeIndex]);
+              }
+            } else if (e.key === "Escape") {
+              if (!list.hidden) { e.stopPropagation(); close(); }
+            }
+          });
+
+          // mousedown (not click) + preventDefault so the input never loses focus
+          list.addEventListener("mousedown", (e) => {
+            const li = e.target.closest("li");
+            if (!li) return;
+            e.preventDefault();
+            choose(li);
+          });
+
+          input.addEventListener("blur", () => {
+            setTimeout(() => { if (!root.contains(document.activeElement)) close(); }, 100);
+          });
+          document.addEventListener("click", (e) => { if (!root.contains(e.target)) close(); });
         }
-      }
-
-      function renderLlmaudit(results) {
-        const container = document.getElementById("llm-audit-results");
-        if (!container) return;
-        container.innerHTML = "";
-
-        if (!results || results.length === 0) {
-          container.innerHTML = '<div class="audit-empty">No audit results yet.</div>';
-          return;
-        }
-
-        const order = { High: 0, Medium: 1, Low: 2 };
-        const sorted = [...results].sort((a, b) => (order[a.severity] ?? 3) - (order[b.severity] ?? 3));
-        const colors = { High: "#d9534f", Medium: "#e0a800", Low: "#6c757d" };
-
-        sorted.forEach(issue => {
-          const color = colors[issue.severity] || "#6c757d";
-          const card = document.createElement("div");
-          card.style.cssText = "border:1px solid #e0e0e0; border-radius:5px; padding:0.6rem; margin-bottom:0.5rem;";
-          card.innerHTML = `
-            <div style="display:flex; align-items:center; gap:0.4rem; margin-bottom:0.3rem;">
-              <span class="status-badge" style="background:${color};">${Utils.escapeHtml(issue.severity || "")}</span>
-              <span style="font-size:0.75rem; color:#888; text-transform:uppercase;">${Utils.escapeHtml(issue.category || "")}</span>
-            </div>
-            <div style="font-weight:600; margin-bottom:0.3rem;">${Utils.escapeHtml(issue.problem || "")}</div>
-            ${issue.suggestion ? `<div style="font-size:0.85rem;">${Utils.escapeHtml(issue.suggestion)}</div>` : ""}
-            ${issue.evidence ? `<details style="margin-top:0.4rem;"><summary style="cursor:pointer; font-size:0.8rem;">Evidence</summary><div style="font-size:0.8rem; margin-top:0.3rem; white-space:pre-wrap;">${Utils.escapeHtml(issue.evidence)}</div></details>` : ""}
-          `;
-          container.appendChild(card);
-        });
-      }
-
-      function renderLlmauditError(res) {
-        const container = document.getElementById("llm-audit-results");
-        if (!container) return;
-        const message = (res && (res.error || res.raw)) || "Unknown error";
-        container.innerHTML = `<div class="template-error-message" style="display:block;">${Utils.escapeHtml(message)}</div>`;
-      }
+      };
 
       /**
        * =========================================
@@ -3978,6 +4154,11 @@
         // llm-request-body initialized via CodeMirror below
 
         UI.bindEvents();
+        document.querySelectorAll("[data-combobox]").forEach(root => UI.setupCombobox(root));
+        // Persist a base URL once the user commits it (typed + blurred, or picked
+        // from the combobox list, which dispatches a synthetic "change").
+        document.getElementById("openai-base-url")?.addEventListener("change", (e) => Providers.openai.setBaseUrl(e.target.value.trim()));
+        document.getElementById("gemini-base-url")?.addEventListener("change", (e) => Providers.gemini.setBaseUrl(e.target.value.trim()));
         UI.updateProviderUI(); // sets initial visibility
         UI.updateJudgeUI();
         UI.renderGlobalVars();
