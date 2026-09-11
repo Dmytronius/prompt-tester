@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <title>Prompt Tester</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    :root {
+      color-scheme: light dark;
+      font-family: "Segoe UI", Arial, sans-serif;
+      background: #f5f5f5;
+      color: #222;
+    }
+
+    body {
+      margin: 0;
+      padding: 0;
+      background: #f5f5f5;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      box-sizing: border-box;
+    }
+
+    .card {
+      width: 100%;
+      max-width: 640px;
+      margin: 2rem;
+      padding: 2.5rem;
+      background: #fff;
+      border-radius: 12px;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+      box-sizing: border-box;
+    }
+
+    h1 {
+      margin: 0 0 0.5rem;
+      font-size: 1.8rem;
+    }
+
+    .tagline {
+      margin: 0 0 1.75rem;
+      color: #4a5668;
+      font-size: 1.05rem;
+      line-height: 1.5;
+    }
+
+    .links {
+      display: flex;
+      flex-direction: column;
+      gap: 0.9rem;
+    }
+
+    .link-btn {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      padding: 0.9rem 1.1rem;
+      border-radius: 8px;
+      border: 1px solid #dde3ea;
+      background: #f8fafc;
+      color: #0d6efd;
+      text-decoration: none;
+      font-size: 1rem;
+      font-weight: 600;
+      transition: background 0.15s ease, border-color 0.15s ease;
+    }
+
+    .link-btn:hover {
+      background: #e5ecf6;
+      border-color: #b9cbe0;
+    }
+
+    .link-btn .icon {
+      font-size: 1.2rem;
+      flex-shrink: 0;
+    }
+
+    .link-btn .desc {
+      display: block;
+      color: #4a5668;
+      font-weight: 400;
+      font-size: 0.85rem;
+      margin-top: 0.15rem;
+    }
+
+    footer {
+      margin-top: 2rem;
+      font-size: 0.85rem;
+      color: #8592a3;
+      text-align: center;
+    }
+
+    footer a {
+      color: #8592a3;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      body {
+        background: #1e1f22;
+      }
+
+      .card {
+        background: #2a2b2e;
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+        color: #e6e6e6;
+      }
+
+      .tagline,
+      .link-btn .desc {
+        color: #a9b3c0;
+      }
+
+      .link-btn {
+        background: #333537;
+        border-color: #444649;
+      }
+
+      .link-btn:hover {
+        background: #3c3e42;
+        border-color: #55585c;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <div class="card">
+    <h1>Prompt Tester</h1>
+    <p class="tagline">
+      A portable, BYOK, single-file HTML app for testing and evaluating LLM prompts and requests.
+      Think of it as Postman for LLMs.
+    </p>
+
+    <div class="links">
+      <a class="link-btn" href="PromptTester.html">
+        <span class="icon">🚀</span>
+        <span>
+          Launch Prompt Tester
+          <span class="desc">Open the app (PromptTester.html)</span>
+        </span>
+      </a>
+
+      <a class="link-btn" href="https://github.com/Dmytronius/prompt-tester/tree/main/Examples" target="_blank" rel="noopener">
+        <span class="icon">📁</span>
+        <span>
+          Example Test Files
+          <span class="desc">Sample prompt tests on GitHub</span>
+        </span>
+      </a>
+
+      <a class="link-btn" href="https://github.com/Dmytronius" target="_blank" rel="noopener">
+        <span class="icon">👤</span>
+        <span>
+          Dmytronius on GitHub
+          <span class="desc">More projects and source code</span>
+        </span>
+      </a>
+    </div>
+
+    <footer>
+      <a href="https://github.com/Dmytronius/prompt-tester" target="_blank" rel="noopener">github.com/Dmytronius/prompt-tester</a>
+    </footer>
+  </div>
+</body>
+
+</html>
