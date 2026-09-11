@@ -4162,8 +4162,8 @@
 
         Providers.gemini.setKey(Storage.get('geminiApiKey'));
         Providers.gemini.setBaseUrl(Storage.get('geminiBaseUrl', 'string', CONSTANTS.DEFAULT_GEMINI_BASE_URL));
-        Providers.gemini.setModel(Storage.get('geminiModel', 'string', 'gemini-2.5-flash'));
-        Providers.gemini.setJudgeModel(Storage.get('geminiJudgeModel', 'string', 'gemini-2.5-pro'));
+        Providers.gemini.setModel(Storage.get('geminiModel', 'string', 'gemini-3.6-flash'));
+        Providers.gemini.setJudgeModel(Storage.get('geminiJudgeModel', 'string', 'gemini-3.8-flash'));
 
         State.judgeEnabled = Storage.get('judgeEnabled', 'boolean', true);
         State.judgePrompt = CONSTANTS.DEFAULT_JUDGE_PROMPT;
