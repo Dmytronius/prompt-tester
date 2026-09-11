@@ -1612,7 +1612,6 @@
 
       <div id="tab-llm-request" class="tab-panel active">
         <div class="section-body">
-
           <div id="llm-request-body-editor" class="editor-container"
             title="Nunjucks template of LLM raw payload. You can extract developer's prompt and messages from it.">
           </div>
@@ -4174,15 +4173,25 @@
         State.judgeSystemPrompt = CONSTANTS.DEFAULT_JUDGE_SYSTEM_PROMPT;
 
         // Initial defaults
-        State.request.llm_request_body = '{\n  "model": "gpt-4o-mini"\n}';
+        State.request.llm_request_body = '{#-\n  Raw LLM request body (JSON) here. You can use Nunjucks templating like {{variable}} to insert values.\n-#}\n{\n  "model": "gpt-4o-mini"\n}';
         State.request.developerMessage = '# Role\nYou are a helpful AI assistant.';
         State.request.messages = [
           { role: "assistant", content: "Hello, how can I help you?" },
           { role: "user", content: "{{usr_msg}}" }
         ];
-        // Default Test
+        // Default Tests
         TestsUI.addTest({
-          name: "Hello", repeat: 1,
+          name: "DateTime", repeat: 1,
+          variables: [{ name: "usr_msg", value: "What is the current date and time?", type: "Text" }],
+          expectedResponse: ""
+        });
+        TestsUI.addTest({
+          name: "WhoYou", repeat: 1,
+          variables: [{ name: "usr_msg", value: "Who are you?", type: "Text" }],
+          expectedResponse: ""
+        });
+        TestsUI.addTest({
+          name: "Hi", repeat: 1,
           variables: [{ name: "usr_msg", value: "hi", type: "Text" }],
           expectedResponse: "Hello, how can I help you?"
         });
