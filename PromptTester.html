@@ -2659,14 +2659,14 @@
           // --- Buttons ---
           document.getElementById("add-message")?.addEventListener("click", () => {
             State.request.messages.push({ role: "user", content: "" });
-            this.renderMessages();
+            RequestUI.renderMessages();
           });
           document.getElementById("add-test")?.addEventListener("click", () => {
-            this.addTest();
+            TestsUI.addTest();
           });
           document.getElementById("select-all-tests")?.addEventListener("change", (e) => {
             State.tests.forEach(t => t.enabled = e.target.checked);
-            this.renderTests();
+            TestsUI.renderTests();
           });
           document.getElementById("run-tests")?.addEventListener("click", () => TestRunner.run());
           document.getElementById("save-config")?.addEventListener("click", () => this.saveConfig());
@@ -2674,12 +2674,12 @@
           document.getElementById("load-file-input")?.addEventListener("change", (e) => this.loadConfig(e));
           document.getElementById("add-global-variable")?.addEventListener("click", () => {
             State.globalVariables.push({ name: "", value: "", type: "Text" });
-            this.renderGlobalVars();
+            RequestUI.renderGlobalVars();
           });
           document.getElementById("add-header")?.addEventListener("click", () => {
             if (!State.request.headers) State.request.headers = [];
             State.request.headers.push({ name: "", value: "" });
-            this.renderHeaders();
+            RequestUI.renderHeaders();
           });
 
           // --- Inputs Sync with State ---
@@ -2694,7 +2694,7 @@
           document.getElementById("judge-prompt")?.addEventListener("input", (e) => { State.judgePrompt = e.target.value; });
           document.getElementById("judge-system-prompt")?.addEventListener("input", (e) => { State.judgeSystemPrompt = e.target.value; });
           document.getElementById("llm-audit-metaprompt")?.addEventListener("input", (e) => { State.llmAuditMetaPrompt = e.target.value; });
-          document.getElementById("llm-audit-reaudit")?.addEventListener("click", () => this.runLlmaudit());
+          document.getElementById("llm-audit-reaudit")?.addEventListener("click", () => AuditUI.runLlmaudit());
 
           document.getElementById("enable-judge")?.addEventListener("change", (e) => {
             State.judgeEnabled = e.target.checked;
@@ -2729,7 +2729,7 @@
               }
             }
           });
-          document.getElementById("extract-prompt-messages")?.addEventListener("click", () => this.extractFromRequestBody());
+          document.getElementById("extract-prompt-messages")?.addEventListener("click", () => RequestUI.extractFromRequestBody());
           document.getElementById("beautify-llm-request")?.addEventListener("click", () => {
             if (this.llmRequestBodyEditor) {
               const current = this.llmRequestBodyEditor.getValue();
@@ -2827,13 +2827,13 @@
             });
           });
           if (key === "openai") Providers.openai.setApiType(Providers.openai.getApiType()); // Refresh radio sync
-          this.renderMessages();
+          RequestUI.renderMessages();
 
           // Update Settings tab text with provider name
           const providerName = key === "openai" ? "OpenAI" : "Gemini";
           this.updateTabButtonStatus("tab-btn-settings", providerName);
 
-          this.auditTools();
+          AuditUI.auditTools();
           // Ensure audit toggle label reflects current panel state
           try {
             const panel = document.getElementById('audit-panel');
@@ -2869,8 +2869,347 @@
           document.getElementById("enable-judge").checked = enabled;
         },
 
+        saveConfig() {
+          const data = {
+            version: 9,
+            savedAt: new Date().toISOString(),
+            // ... serialize state ...
+            provider: Providers.getActive(),
+            // Capture provider settings
+            openaiBaseUrl: Providers.openai.getBaseUrl(),
+            apiType: Providers.openai.getApiType(),
+            geminiBaseUrl: Providers.gemini.getBaseUrl(),
+            geminiModel: Providers.gemini.getModel(),
+            geminiJudgeModel: Providers.gemini.getJudgeModel(),
+            judgeModel: Providers.openai.getJudgeModel(),
+            llmAuditMetaPrompt: State.llmAuditMetaPrompt,
+            ...State
+          };
+          const filename = `prompt-tests-${Utils.timestampSlug()}.json`;
+          const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+          const link = document.createElement("a");
+          link.href = URL.createObjectURL(blob);
+          link.download = filename;
+          link.click();
+          const saveBtn = document.getElementById("save-config");
+          if (saveBtn) saveBtn.title = `Saved "${filename}"`;
+        },
+
+        loadConfig(e) {
+          const file = e.target.files?.[0];
+          if (!file) return;
+          const r = new FileReader();
+          r.onload = evt => {
+            try {
+              const d = JSON.parse(evt.target.result);
+              this.applyConfig(d);
+              this.setStatus("Loaded configuration.", "success");
+              const loadBtn = document.getElementById("load-config");
+              if (loadBtn) loadBtn.title = `Loaded "${file.name}"`;
+            } catch (err) { this.setStatus("Failed to load config.", "error"); }
+          };
+          r.readAsText(file);
+          e.target.value = '';
+        },
+
+        applyConfig(data) {
+          let detectedProvider = "openai";
+
+          // Backward compatibility for " - JSON" roles
+          if (data.request && Array.isArray(data.request.messages)) {
+            data.request.messages.forEach(m => {
+              if (typeof m.role === "string" && m.role.endsWith(" - JSON")) {
+                try {
+                  const baseRole = m.role.slice(0, -7);
+                  const parsedContent = JSON.parse(m.content);
+                  // Simple heuristic to detect Gemini: role 'model' or presence of gemini props
+                  const isGemini = baseRole === "model" || data.provider === "gemini" || !!data.geminiModel;
+                  if (isGemini) detectedProvider = "gemini";
+
+                  const innerObject = isGemini
+                    ? { role: baseRole, parts: [parsedContent] }
+                    : { role: baseRole, content: parsedContent };
+
+                  m.role = "JSON";
+                  m.content = JSON.stringify(innerObject);
+                } catch (e) {
+                  console.warn("Failed to migrate ' - JSON' role:", e);
+                }
+              }
+            });
+          }
+
+          if (data.request) {
+            State.request = data.request;
+            // Backward compatibility
+            if (data.request.parameters && !data.request.llm_request_body) {
+              State.request.llm_request_body = data.request.parameters;
+              delete State.request.parameters;
+            }
+            if (!State.request.headers) State.request.headers = [];
+          }
+          if (data.tests) {
+            State.tests = data.tests.map(t => ({
+              ...t,
+              variables: (t.variables || []).map(v => ({ type: "Text", ...v }))
+            }));
+          }
+          if (data.nextTestId) {
+            State.nextTestId = data.nextTestId;
+          } else if (State.tests.length > 0) {
+            State.nextTestId = Math.max(...State.tests.map(t => t.id || 0)) + 1;
+          } else {
+            State.nextTestId = 1;
+          }
+          if (data.runSummaries) State.runSummaries = data.runSummaries;
+          // ... hydrate other fields ...
+          if (data.globalVariables) {
+            State.globalVariables = data.globalVariables.map(v => ({ type: "Text", ...v }));
+          }
+          if (data.judgePrompt) State.judgePrompt = data.judgePrompt;
+          if (data.judgeSystemPrompt) State.judgeSystemPrompt = data.judgeSystemPrompt;
+          if (typeof data.judgeEnabled == 'boolean') State.judgeEnabled = data.judgeEnabled;
+          if (data.llmAuditMetaPrompt) State.llmAuditMetaPrompt = data.llmAuditMetaPrompt;
+          if (data.llmAuditResults) State.llmAuditResults = data.llmAuditResults;
+          if (data.llmAuditRaw) State.llmAuditRaw = data.llmAuditRaw;
+
+          // Restore document inputs
+          // Restore document inputs
+          if (this.llmRequestBodyEditor) {
+            const val = typeof State.request.llm_request_body === 'string' ? State.request.llm_request_body : JSON.stringify(State.request.llm_request_body, null, 2);
+            this.llmRequestBodyEditor.setValue(val);
+          }
+          if (this.devPromptEditor) {
+            this.devPromptEditor.setValue(State.request.developerMessage);
+          }
+          document.getElementById("judge-prompt").value = State.judgePrompt;
+          document.getElementById("judge-system-prompt").value = State.judgeSystemPrompt;
+          if (document.getElementById("llm-audit-metaprompt")) {
+            document.getElementById("llm-audit-metaprompt").value = State.llmAuditMetaPrompt || "";
+          }
+
+          // Provider specific
+          const providerToSet = data.provider || detectedProvider;
+          if (providerToSet) {
+            Providers.setActive(providerToSet);
+          }
+
+          if (data.openaiBaseUrl) Providers.openai.setBaseUrl(data.openaiBaseUrl);
+          if (data.geminiBaseUrl) Providers.gemini.setBaseUrl(data.geminiBaseUrl);
+          if (data.geminiModel) Providers.gemini.setModel(data.geminiModel);
+          if (data.geminiJudgeModel) Providers.gemini.setJudgeModel(data.geminiJudgeModel);
+          if (data.judgeModel) Providers.openai.setJudgeModel(data.judgeModel);
+          if (data.apiType) Providers.openai.setApiType(data.apiType);
+
+          this.updateProviderUI();
+          this.updateJudgeUI();
+          RequestUI.renderGlobalVars();
+          RequestUI.renderHeaders();
+          TestsUI.renderTests();
+          // Render any persisted LLM audit results
+          try { AuditUI.renderLlmaudit(State.llmAuditResults || []); } catch (e) { /* ignore if UI not ready */ }
+        },
+
+        validateTemplate(id) {
+          let value = "";
+          if (id === 'developer-prompt') {
+            value = this.devPromptEditor ? this.devPromptEditor.getValue() : State.request.developerMessage;
+          } else if (id === 'llm-request-body') {
+            value = this.llmRequestBodyEditor ? this.llmRequestBodyEditor.getValue() : State.request.llm_request_body;
+          } else {
+            const el = document.getElementById(id);
+            if (!el) return;
+            value = el.value;
+          }
+          const shouldCheckJson = (id === 'llm-request-body');
+
+          const res = Utils.validate(value, shouldCheckJson);
+
+          const heading = document.getElementById(id + "-heading"); // convention
+          const err = document.getElementById(id + "-error");
+
+          if (heading) {
+            heading.classList.toggle("template-error", !res.ok);
+            heading.classList.toggle("template-ok", res.ok);
+          }
+          if (err) {
+            if (res.ok) {
+              if (id === 'developer-prompt') {
+                err.className = "template-error-message success";
+                err.innerHTML = `<span class="template-error-inner success">${STATUS_ICONS.success} Template is valid</span>`;
+                err.style.display = "block";
+              } else {
+                err.className = "template-error-message";
+                err.innerHTML = "";
+                err.style.display = "none";
+              }
+              delete err.dataset.baseError;
+            } else {
+              err.className = "template-error-message";
+              err.innerHTML = `<span class="template-error-inner error">${STATUS_ICONS.fail} ${Utils.escapeHtml(res.error || "Error")}</span>`;
+              err.style.display = "block";
+              err.dataset.baseError = res.error || "Error";
+              this.updateCursorInfo(id);
+            }
+          }
+
+          if (id === 'llm-request-body' || id === 'developer-prompt') {
+            const tabBtnId = id === 'llm-request-body' ? 'tab-btn-llm-request' : 'tab-btn-developer-prompt';
+            if (res.ok) {
+              this.updateTabButtonStatus(tabBtnId, "", false);
+              if (id === 'developer-prompt') {
+                const variables = Utils.extractTemplateVariables(value);
+                this.renderTemplateVariables(id, variables);
+              }
+              AuditUI.auditTools();
+            } else {
+              this.updateTabButtonStatus(tabBtnId, "ERROR", true);
+              if (id === 'developer-prompt') {
+                this.renderTemplateVariables(id, []);
+              }
+              if (id === 'llm-request-body') {
+                AuditUI.renderToolAudit([]);
+              }
+            }
+          }
+        },
+
+        updateCursorInfo(id) {
+          const err = document.getElementById(id + "-error");
+          if (!err || err.style.display === "none" || !err.dataset.baseError) return;
+
+          const renderAt = (line, col) => {
+            err.innerHTML = `<span class="template-error-inner error">${STATUS_ICONS.fail} ${Utils.escapeHtml(err.dataset.baseError)}\nCurrently at line ${line} column ${col}</span>`;
+          };
+
+          if (id === 'developer-prompt') {
+            if (!this.devPromptEditor) return;
+            const cursor = this.devPromptEditor.getCursor();
+            renderAt(cursor.line + 1, cursor.ch + 1);
+            return;
+          }
+
+          if (id === 'llm-request-body') {
+            if (!this.llmRequestBodyEditor) return;
+            const cursor = this.llmRequestBodyEditor.getCursor();
+            renderAt(cursor.line + 1, cursor.ch + 1);
+            return;
+          }
+
+          const el = document.getElementById(id);
+          if (!el) return;
+
+          const val = el.value.substring(0, el.selectionStart);
+          const lines = val.split("\n");
+          const line = lines.length;
+          const col = lines[lines.length - 1].length + 1;
+
+          renderAt(line, col);
+        },
+
+        renderTemplateVariables(id, variables) {
+          const container = document.getElementById(id + "-variables");
+          if (!container) return;
+          container.innerHTML = "";
+          variables.forEach(name => {
+            const chip = document.createElement("span");
+            chip.className = "audit-variable-item";
+            chip.textContent = name;
+            container.appendChild(chip);
+          });
+        },
+
+        /**
+         * Turn a `[data-combobox]` wrapper (an <input>, a `.combobox-toggle`
+         * button and a <ul.combobox-list>) into a select-like suggestion
+         * dropdown. The list opens only via the toggle button (or
+         * ArrowDown) and closes as soon as the user types; the input stays
+         * freely editable.
+         */
+        setupCombobox(root) {
+          const input = root.querySelector("input");
+          const list = root.querySelector(".combobox-list");
+          const toggle = root.querySelector(".combobox-toggle");
+          if (!input || !list) return;
+          const options = Array.from(list.querySelectorAll("li"));
+          let activeIndex = -1;
+
+          function setActive(idx) {
+            activeIndex = idx;
+            options.forEach((li, i) => li.classList.toggle("active", i === idx));
+            if (idx >= 0 && options[idx]) options[idx].scrollIntoView({ block: "nearest" });
+          }
+
+          function open() {
+            list.hidden = false;
+            input.setAttribute("aria-expanded", "true");
+          }
+
+          function close() {
+            list.hidden = true;
+            input.setAttribute("aria-expanded", "false");
+            setActive(-1);
+          }
+
+          function choose(li) {
+            input.value = li.textContent;
+            close();
+            // Notify external listeners (e.g. base-URL persistence).
+            input.dispatchEvent(new Event("input", { bubbles: true }));
+            input.dispatchEvent(new Event("change", { bubbles: true }));
+          }
+
+          // Toggle button opens/closes the list, like a native <select>.
+          toggle?.addEventListener("mousedown", (e) => {
+            e.preventDefault(); // keep focus on the input
+            if (list.hidden) { open(); input.focus(); } else { close(); }
+          });
+
+          // Typing dismisses the list - the field is back to free text entry.
+          input.addEventListener("input", close);
+
+          input.addEventListener("keydown", (e) => {
+            if (e.key === "ArrowDown") {
+              e.preventDefault();
+              if (list.hidden) { open(); return; }
+              setActive(Math.min(activeIndex + 1, options.length - 1));
+            } else if (e.key === "ArrowUp") {
+              e.preventDefault();
+              if (list.hidden) return;
+              setActive(Math.max(activeIndex - 1, 0));
+            } else if (e.key === "Enter") {
+              if (!list.hidden && activeIndex >= 0 && options[activeIndex]) {
+                e.preventDefault();
+                choose(options[activeIndex]);
+              }
+            } else if (e.key === "Escape") {
+              if (!list.hidden) { e.stopPropagation(); close(); }
+            }
+          });
+
+          // mousedown (not click) + preventDefault so the input never loses focus
+          list.addEventListener("mousedown", (e) => {
+            const li = e.target.closest("li");
+            if (!li) return;
+            e.preventDefault();
+            choose(li);
+          });
+
+          input.addEventListener("blur", () => {
+            setTimeout(() => { if (!root.contains(document.activeElement)) close(); }, 100);
+          });
+          document.addEventListener("click", (e) => { if (!root.contains(e.target)) close(); });
+        }
+      }; // End of UI
+
+      /**
+       * =========================================
+       * Request/Setup tab UI
+       * =========================================
+       */
+      const RequestUI = {
         renderMessages() {
-          const container = this.Elements.messages;
+          const container = UI.Elements.messages;
           if (!container) return;
           container.innerHTML = "";
           const roles = Providers.getCurrent().roles;
@@ -2958,7 +3297,7 @@
         },
 
         renderHeaders() {
-          const container = this.Elements.headers;
+          const container = UI.Elements.headers;
           if (!container) return;
           container.innerHTML = "";
           if (!State.request.headers) State.request.headers = [];
@@ -2996,7 +3335,7 @@
         },
 
         renderGlobalVars() {
-          const container = this.Elements.globalVars;
+          const container = UI.Elements.globalVars;
           if (!container) return;
           container.innerHTML = "";
           State.globalVariables.forEach((v, i) => {
@@ -3060,6 +3399,286 @@
           });
         },
 
+        extractFromRequestBody() {
+          const text = UI.llmRequestBodyEditor ? UI.llmRequestBodyEditor.getValue() : "";
+          const json = Utils.safeJsonParse(text);
+          if (!json) { UI.setStatus("Invalid JSON in Request Body", "error"); return; }
+
+          let msgs = [], dev = "";
+
+          // Detection Logic
+          if (json.messages) { // Chat Completions (OpenAI)
+            Providers.setActive('openai');
+            Providers.openai.setApiType('completions');
+
+            dev = json.messages.find(m => m.role === "system" || m.role === "developer")?.content || "";
+            msgs = json.messages.filter(m => m.role !== "system" && m.role !== "developer");
+            delete json.messages;
+          } else if (json.contents) { // Gemini
+            Providers.setActive('gemini');
+
+            if (json.system_instruction) dev = json.system_instruction.parts?.[0]?.text || "";
+
+            // Parse contents. If parts > 1 or not simple text, we'll let the generic handler catch it as JSON
+            msgs = json.contents.map(c => {
+              // Try to extract simple text
+              if (c.parts && c.parts.length === 1 && c.parts[0].text && Object.keys(c.parts[0]).length === 1) {
+                return { role: c.role, content: c.parts[0].text };
+              }
+              // Otherwise return raw object to be caught by complex handler
+              return c;
+            });
+
+            delete json.contents;
+            delete json.system_instruction;
+          } else if (json.input) { // Response format (OpenAI)
+            Providers.setActive('openai');
+            Providers.openai.setApiType('responses');
+
+            if (json.instructions) {
+              dev = json.instructions;
+              msgs = json.input;
+              delete json.instructions;
+            } else {
+              dev = json.input.find(m => m.role === "system" || m.role === "developer")?.content || "";
+              msgs = json.input.filter(m => m.role !== "system" && m.role !== "developer");
+            }
+            delete json.input;
+          }
+
+          // Handle non-text / complex content (e.g. JSON objects)
+          msgs = msgs.map(m => {
+            // Logic:
+            // 1. If we already detected it (e.g. stringified content), check format
+            // 2. If it's a "simple" message ({role, content} where content is string), keep it
+            // 3. If it has extra keys OR content is not string OR missing basic keys -> Treat as "JSON"
+
+            // Check keys
+            const keys = Object.keys(m);
+            const hasExtraKeys = keys.some(k => k !== "role" && k !== "content");
+            const isSimple = !hasExtraKeys && typeof m.content === "string" && typeof m.role === "string";
+
+            if (!isSimple) {
+              const r = "JSON";
+              const provider = Providers.getCurrent();
+              if (!provider.roles.includes(r)) {
+                provider.roles.push(r);
+              }
+              // Content is the whole message stringified
+              return { role: r, content: JSON.stringify(m, null, 2) };
+            }
+            return m;
+          });
+
+          State.request.developerMessage = dev;
+          State.request.messages = msgs;
+
+          // Update body to remove extracted parts
+          const cleanedJson = JSON.stringify(json, null, 2);
+          State.request.llm_request_body = cleanedJson;
+
+          if (UI.llmRequestBodyEditor) {
+            UI.llmRequestBodyEditor.setValue(cleanedJson);
+          }
+
+          if (UI.devPromptEditor) {
+            UI.devPromptEditor.setValue(dev);
+          }
+          this.renderMessages();
+          UI.setStatus("Extracted!", "success");
+        }
+      }; // End of RequestUI
+
+      /**
+       * =========================================
+       * Prompt Audit panel UI (tool mentions + LLM audit)
+       * =========================================
+       */
+      const AuditUI = {
+        auditTools() {
+          const provider = Providers.getCurrent();
+          const toolNames = provider.getToolsNames ? provider.getToolsNames() : [];
+          const promptText = UI.devPromptEditor ? UI.devPromptEditor.getValue() : State.request.developerMessage;
+          const lines = (promptText || "").split("\n");
+
+          const results = toolNames.map(name => {
+            const mentions = [];
+            const re = new RegExp(`\\b${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`);
+            lines.forEach((line, idx) => {
+              if (re.test(line)) mentions.push(idx + 1);
+            });
+            return { name, mentions };
+          });
+
+          this.renderToolAudit(results);
+          this.setAuditToggleState(results);
+        },
+
+        renderToolAudit(results) {
+          const container = document.getElementById("audit-tools-list");
+          if (!container) return;
+          container.innerHTML = "";
+
+          if (!results || results.length === 0) {
+            container.innerHTML = '<div class="audit-empty">No tools configured.</div>';
+            return;
+          }
+
+          results.forEach(r => {
+            const row = document.createElement("div");
+            row.style.marginBottom = "0.5rem";
+            const mentioned = r.mentions.length > 0;
+            const icon = mentioned ? STATUS_ICONS.success : STATUS_ICONS.fail;
+            const detail = mentioned
+              ? `Lines: ${r.mentions.join(", ")}`
+              : `<span style="color:#d9534f;">Not mentioned in prompt</span>`;
+            row.innerHTML = `${icon} <strong>${Utils.escapeHtml(r.name)}</strong><br><span style="font-size:0.8rem;">${detail}</span>`;
+            container.appendChild(row);
+          });
+        },
+
+        setAuditToggleState(results) {
+          const btn = document.getElementById("audit-panel-toggle");
+          if (!btn) return;
+          btn.classList.remove("audit-state-ok", "audit-state-warn", "audit-state-error");
+          if (!results || results.length === 0) {
+            btn.title = "Toggle Prompt Audit panel";
+            return;
+          }
+          const missing = results.filter(r => r.mentions.length === 0);
+          if (missing.length === 0) {
+            btn.style.borderLeft = "3px solid #198754";
+            btn.title = "All tools are mentioned in the prompt";
+          } else {
+            btn.style.borderLeft = "3px solid #d9534f";
+            btn.title = `${missing.length} tool(s) not mentioned in the prompt: ${missing.map(m => m.name).join(", ")}`;
+          }
+        },
+
+        /**
+         * =========================================
+         * LLM Audit (prompt critique via judge model)
+         * =========================================
+         */
+        async runLlmaudit() {
+          const provider = Providers.getCurrent();
+          const promptText = UI.devPromptEditor ? UI.devPromptEditor.getValue() : State.request.developerMessage;
+          const metaprompt = State.llmAuditMetaPrompt || CONSTANTS.DEFAULT_LLM_AUDIT_METAPROMPT;
+
+          let userContent = `<llm_prompt_to_analyze>\n${promptText}\n</llm_prompt_to_analyze>`;
+
+          const tools = provider.getTools ? provider.getTools() : null;
+          if (tools) {
+            userContent += `\n\n<llm_tools>\n${JSON.stringify(tools, null, 2)}\n</llm_tools>`;
+          }
+
+          const structOutput = provider.getStructOutput ? provider.getStructOutput() : null;
+          if (structOutput) {
+            userContent += `\n\n<llm_structured_output>\n${JSON.stringify(structOutput, null, 2)}\n</llm_structured_output>`;
+          }
+
+          const schema = {
+            type: "object",
+            properties: {
+              issues: {
+                type: "array",
+                items: {
+                  type: "object",
+                  properties: {
+                    severity: { type: "string", enum: ["Low", "Medium", "High"] },
+                    category: { type: "string", enum: ["conflict", "ambiguity", "inaccuracy", "redundancy", "gap", "other"] },
+                    problem: { type: "string" },
+                    evidence: { type: "string" },
+                    suggestion: { type: "string" }
+                  },
+                  required: ["severity", "category", "problem", "evidence", "suggestion"]
+                }
+              }
+            },
+            required: ["issues"]
+          };
+
+          UI.setStatus("Running LLM Audit, may take a moment (~1min)...", "");
+          const reauditBtn = document.getElementById("llm-audit-reaudit");
+          if (reauditBtn) reauditBtn.disabled = true;
+
+          try {
+            const res = await provider.call_struct_output({
+              llm_body: { model: provider.getJudgeModel() },
+              developer: metaprompt,
+              messages: [{ role: "user", content: userContent }],
+              output_schema: schema
+            });
+
+            if (!res.success) {
+              State.llmAuditResults = [];
+              State.llmAuditRaw = res.raw;
+              this.renderLlmauditError(res);
+              UI.setStatus("LLM Audit failed.", "error");
+              return;
+            }
+
+            const issues = Array.isArray(res.parsed) ? res.parsed : (res.parsed.issues || []);
+            State.llmAuditResults = issues;
+            State.llmAuditRaw = res.raw;
+            this.renderLlmaudit(issues);
+            UI.setStatus("LLM Audit complete.", "success");
+          } catch (err) {
+            const msg = err.message || String(err);
+            State.llmAuditResults = [];
+            State.llmAuditRaw = msg;
+            this.renderLlmauditError({ error: msg, raw: msg });
+            UI.setStatus("LLM Audit failed.", "error");
+          } finally {
+            if (reauditBtn) reauditBtn.disabled = false;
+          }
+        },
+
+        renderLlmaudit(results) {
+          const container = document.getElementById("llm-audit-results");
+          if (!container) return;
+          container.innerHTML = "";
+
+          if (!results || results.length === 0) {
+            container.innerHTML = '<div class="audit-empty">No audit results yet.</div>';
+            return;
+          }
+
+          const order = { High: 0, Medium: 1, Low: 2 };
+          const sorted = [...results].sort((a, b) => (order[a.severity] ?? 3) - (order[b.severity] ?? 3));
+          const colors = { High: "#d9534f", Medium: "#e0a800", Low: "#6c757d" };
+
+          sorted.forEach(issue => {
+            const color = colors[issue.severity] || "#6c757d";
+            const card = document.createElement("div");
+            card.style.cssText = "border:1px solid #e0e0e0; border-radius:5px; padding:0.6rem; margin-bottom:0.5rem;";
+            card.innerHTML = `
+              <div style="display:flex; align-items:center; gap:0.4rem; margin-bottom:0.3rem;">
+                <span class="status-badge" style="background:${color};">${Utils.escapeHtml(issue.severity || "")}</span>
+                <span style="font-size:0.75rem; color:#888; text-transform:uppercase;">${Utils.escapeHtml(issue.category || "")}</span>
+              </div>
+              <div style="font-weight:600; margin-bottom:0.3rem;">${Utils.escapeHtml(issue.problem || "")}</div>
+              ${issue.suggestion ? `<div style="font-size:0.85rem;">${Utils.escapeHtml(issue.suggestion)}</div>` : ""}
+              ${issue.evidence ? `<details style="margin-top:0.4rem;"><summary style="cursor:pointer; font-size:0.8rem;">Evidence</summary><div style="font-size:0.8rem; margin-top:0.3rem; white-space:pre-wrap;">${Utils.escapeHtml(issue.evidence)}</div></details>` : ""}
+            `;
+            container.appendChild(card);
+          });
+        },
+
+        renderLlmauditError(res) {
+          const container = document.getElementById("llm-audit-results");
+          if (!container) return;
+          const message = (res && (res.error || res.raw)) || "Unknown error";
+          container.innerHTML = `<div class="template-error-message" style="display:block;">${Utils.escapeHtml(message)}</div>`;
+        }
+      }; // End of AuditUI
+
+      /**
+       * =========================================
+       * Tests tab UI
+       * =========================================
+       */
+      const TestsUI = {
         addTest(data = null) {
           const id = State.nextTestId++;
           const test = {
@@ -3072,7 +3691,7 @@
         },
 
         renderTests() {
-          const tbody = this.Elements.results;
+          const tbody = UI.Elements.results;
           if (!tbody) return;
           tbody.innerHTML = "";
 
@@ -3316,606 +3935,8 @@
           closeBtn.onclick = () => document.getElementById('test-details-modal').close();
           footer.appendChild(closeBtn);
           container.appendChild(footer);
-        },
-
-        saveConfig() {
-          const data = {
-            version: 9,
-            savedAt: new Date().toISOString(),
-            // ... serialize state ...
-            provider: Providers.getActive(),
-            // Capture provider settings
-            openaiBaseUrl: Providers.openai.getBaseUrl(),
-            apiType: Providers.openai.getApiType(),
-            geminiBaseUrl: Providers.gemini.getBaseUrl(),
-            geminiModel: Providers.gemini.getModel(),
-            geminiJudgeModel: Providers.gemini.getJudgeModel(),
-            judgeModel: Providers.openai.getJudgeModel(),
-            llmAuditMetaPrompt: State.llmAuditMetaPrompt,
-            ...State
-          };
-          const filename = `prompt-tests-${Utils.timestampSlug()}.json`;
-          const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
-          const link = document.createElement("a");
-          link.href = URL.createObjectURL(blob);
-          link.download = filename;
-          link.click();
-          const saveBtn = document.getElementById("save-config");
-          if (saveBtn) saveBtn.title = `Saved "${filename}"`;
-        },
-
-        loadConfig(e) {
-          const file = e.target.files?.[0];
-          if (!file) return;
-          const r = new FileReader();
-          r.onload = evt => {
-            try {
-              const d = JSON.parse(evt.target.result);
-              this.applyConfig(d);
-              this.setStatus("Loaded configuration.", "success");
-              const loadBtn = document.getElementById("load-config");
-              if (loadBtn) loadBtn.title = `Loaded "${file.name}"`;
-            } catch (err) { this.setStatus("Failed to load config.", "error"); }
-          };
-          r.readAsText(file);
-          e.target.value = '';
-        },
-
-        applyConfig(data) {
-          let detectedProvider = "openai";
-
-          // Backward compatibility for " - JSON" roles
-          if (data.request && Array.isArray(data.request.messages)) {
-            data.request.messages.forEach(m => {
-              if (typeof m.role === "string" && m.role.endsWith(" - JSON")) {
-                try {
-                  const baseRole = m.role.slice(0, -7);
-                  const parsedContent = JSON.parse(m.content);
-                  // Simple heuristic to detect Gemini: role 'model' or presence of gemini props
-                  const isGemini = baseRole === "model" || data.provider === "gemini" || !!data.geminiModel;
-                  if (isGemini) detectedProvider = "gemini";
-
-                  const innerObject = isGemini
-                    ? { role: baseRole, parts: [parsedContent] }
-                    : { role: baseRole, content: parsedContent };
-
-                  m.role = "JSON";
-                  m.content = JSON.stringify(innerObject);
-                } catch (e) {
-                  console.warn("Failed to migrate ' - JSON' role:", e);
-                }
-              }
-            });
-          }
-
-          if (data.request) {
-            State.request = data.request;
-            // Backward compatibility
-            if (data.request.parameters && !data.request.llm_request_body) {
-              State.request.llm_request_body = data.request.parameters;
-              delete State.request.parameters;
-            }
-            if (!State.request.headers) State.request.headers = [];
-          }
-          if (data.tests) {
-            State.tests = data.tests.map(t => ({
-              ...t,
-              variables: (t.variables || []).map(v => ({ type: "Text", ...v }))
-            }));
-          }
-          if (data.nextTestId) {
-            State.nextTestId = data.nextTestId;
-          } else if (State.tests.length > 0) {
-            State.nextTestId = Math.max(...State.tests.map(t => t.id || 0)) + 1;
-          } else {
-            State.nextTestId = 1;
-          }
-          if (data.runSummaries) State.runSummaries = data.runSummaries;
-          // ... hydrate other fields ...
-          if (data.globalVariables) {
-            State.globalVariables = data.globalVariables.map(v => ({ type: "Text", ...v }));
-          }
-          if (data.judgePrompt) State.judgePrompt = data.judgePrompt;
-          if (data.judgeSystemPrompt) State.judgeSystemPrompt = data.judgeSystemPrompt;
-          if (typeof data.judgeEnabled == 'boolean') State.judgeEnabled = data.judgeEnabled;
-          if (data.llmAuditMetaPrompt) State.llmAuditMetaPrompt = data.llmAuditMetaPrompt;
-          if (data.llmAuditResults) State.llmAuditResults = data.llmAuditResults;
-          if (data.llmAuditRaw) State.llmAuditRaw = data.llmAuditRaw;
-
-          // Restore document inputs
-          // Restore document inputs
-          if (this.llmRequestBodyEditor) {
-            const val = typeof State.request.llm_request_body === 'string' ? State.request.llm_request_body : JSON.stringify(State.request.llm_request_body, null, 2);
-            this.llmRequestBodyEditor.setValue(val);
-          }
-          if (this.devPromptEditor) {
-            this.devPromptEditor.setValue(State.request.developerMessage);
-          }
-          document.getElementById("judge-prompt").value = State.judgePrompt;
-          document.getElementById("judge-system-prompt").value = State.judgeSystemPrompt;
-          if (document.getElementById("llm-audit-metaprompt")) {
-            document.getElementById("llm-audit-metaprompt").value = State.llmAuditMetaPrompt || "";
-          }
-
-          // Provider specific
-          const providerToSet = data.provider || detectedProvider;
-          if (providerToSet) {
-            Providers.setActive(providerToSet);
-          }
-
-          if (data.openaiBaseUrl) Providers.openai.setBaseUrl(data.openaiBaseUrl);
-          if (data.geminiBaseUrl) Providers.gemini.setBaseUrl(data.geminiBaseUrl);
-          if (data.geminiModel) Providers.gemini.setModel(data.geminiModel);
-          if (data.geminiJudgeModel) Providers.gemini.setJudgeModel(data.geminiJudgeModel);
-          if (data.judgeModel) Providers.openai.setJudgeModel(data.judgeModel);
-          if (data.apiType) Providers.openai.setApiType(data.apiType);
-
-          this.updateProviderUI();
-          this.updateJudgeUI();
-          this.renderGlobalVars();
-          this.renderHeaders();
-          this.renderTests();
-          // Render any persisted LLM audit results
-          try { this.renderLlmaudit(State.llmAuditResults || []); } catch (e) { /* ignore if UI not ready */ }
-        },
-
-        extractFromRequestBody() {
-          const text = this.llmRequestBodyEditor ? this.llmRequestBodyEditor.getValue() : "";
-          const json = Utils.safeJsonParse(text);
-          if (!json) { this.setStatus("Invalid JSON in Request Body", "error"); return; }
-
-          let msgs = [], dev = "";
-
-          // Detection Logic
-          if (json.messages) { // Chat Completions (OpenAI)
-            Providers.setActive('openai');
-            Providers.openai.setApiType('completions');
-
-            dev = json.messages.find(m => m.role === "system" || m.role === "developer")?.content || "";
-            msgs = json.messages.filter(m => m.role !== "system" && m.role !== "developer");
-            delete json.messages;
-          } else if (json.contents) { // Gemini
-            Providers.setActive('gemini');
-
-            if (json.system_instruction) dev = json.system_instruction.parts?.[0]?.text || "";
-
-            // Parse contents. If parts > 1 or not simple text, we'll let the generic handler catch it as JSON
-            msgs = json.contents.map(c => {
-              // Try to extract simple text
-              if (c.parts && c.parts.length === 1 && c.parts[0].text && Object.keys(c.parts[0]).length === 1) {
-                return { role: c.role, content: c.parts[0].text };
-              }
-              // Otherwise return raw object to be caught by complex handler
-              return c;
-            });
-
-            delete json.contents;
-            delete json.system_instruction;
-          } else if (json.input) { // Response format (OpenAI)
-            Providers.setActive('openai');
-            Providers.openai.setApiType('responses');
-
-            if (json.instructions) {
-              dev = json.instructions;
-              msgs = json.input;
-              delete json.instructions;
-            } else {
-              dev = json.input.find(m => m.role === "system" || m.role === "developer")?.content || "";
-              msgs = json.input.filter(m => m.role !== "system" && m.role !== "developer");
-            }
-            delete json.input;
-          }
-
-          // Handle non-text / complex content (e.g. JSON objects)
-          msgs = msgs.map(m => {
-            // Logic:
-            // 1. If we already detected it (e.g. stringified content), check format
-            // 2. If it's a "simple" message ({role, content} where content is string), keep it
-            // 3. If it has extra keys OR content is not string OR missing basic keys -> Treat as "JSON"
-
-            // Check keys
-            const keys = Object.keys(m);
-            const hasExtraKeys = keys.some(k => k !== "role" && k !== "content");
-            const isSimple = !hasExtraKeys && typeof m.content === "string" && typeof m.role === "string";
-
-            if (!isSimple) {
-              const r = "JSON";
-              const provider = Providers.getCurrent();
-              if (!provider.roles.includes(r)) {
-                provider.roles.push(r);
-              }
-              // Content is the whole message stringified
-              return { role: r, content: JSON.stringify(m, null, 2) };
-            }
-            return m;
-          });
-
-          State.request.developerMessage = dev;
-          State.request.messages = msgs;
-
-          // Update body to remove extracted parts
-          const cleanedJson = JSON.stringify(json, null, 2);
-          State.request.llm_request_body = cleanedJson;
-
-          if (this.llmRequestBodyEditor) {
-            this.llmRequestBodyEditor.setValue(cleanedJson);
-          }
-
-          if (this.devPromptEditor) {
-            this.devPromptEditor.setValue(dev);
-          }
-          this.renderMessages();
-          this.setStatus("Extracted!", "success");
-        },
-
-        validateTemplate(id) {
-          let value = "";
-          if (id === 'developer-prompt') {
-            value = this.devPromptEditor ? this.devPromptEditor.getValue() : State.request.developerMessage;
-          } else if (id === 'llm-request-body') {
-            value = this.llmRequestBodyEditor ? this.llmRequestBodyEditor.getValue() : State.request.llm_request_body;
-          } else {
-            const el = document.getElementById(id);
-            if (!el) return;
-            value = el.value;
-          }
-          const shouldCheckJson = (id === 'llm-request-body');
-
-          const res = Utils.validate(value, shouldCheckJson);
-
-          const heading = document.getElementById(id + "-heading"); // convention
-          const err = document.getElementById(id + "-error");
-
-          if (heading) {
-            heading.classList.toggle("template-error", !res.ok);
-            heading.classList.toggle("template-ok", res.ok);
-          }
-          if (err) {
-            if (res.ok) {
-              if (id === 'developer-prompt') {
-                err.className = "template-error-message success";
-                err.innerHTML = `<span class="template-error-inner success">${STATUS_ICONS.success} Template is valid</span>`;
-                err.style.display = "block";
-              } else {
-                err.className = "template-error-message";
-                err.innerHTML = "";
-                err.style.display = "none";
-              }
-              delete err.dataset.baseError;
-            } else {
-              err.className = "template-error-message";
-              err.innerHTML = `<span class="template-error-inner error">${STATUS_ICONS.fail} ${Utils.escapeHtml(res.error || "Error")}</span>`;
-              err.style.display = "block";
-              err.dataset.baseError = res.error || "Error";
-              this.updateCursorInfo(id);
-            }
-          }
-
-          if (id === 'llm-request-body' || id === 'developer-prompt') {
-            const tabBtnId = id === 'llm-request-body' ? 'tab-btn-llm-request' : 'tab-btn-developer-prompt';
-            if (res.ok) {
-              this.updateTabButtonStatus(tabBtnId, "", false);
-              if (id === 'developer-prompt') {
-                const variables = Utils.extractTemplateVariables(value);
-                this.renderTemplateVariables(id, variables);
-              }
-              this.auditTools();
-            } else {
-              this.updateTabButtonStatus(tabBtnId, "ERROR", true);
-              if (id === 'developer-prompt') {
-                this.renderTemplateVariables(id, []);
-              }
-              if (id === 'llm-request-body') {
-                this.renderToolAudit([]);
-              }
-            }
-          }
-        },
-
-        updateCursorInfo(id) {
-          const err = document.getElementById(id + "-error");
-          if (!err || err.style.display === "none" || !err.dataset.baseError) return;
-
-          const renderAt = (line, col) => {
-            err.innerHTML = `<span class="template-error-inner error">${STATUS_ICONS.fail} ${Utils.escapeHtml(err.dataset.baseError)}\nCurrently at line ${line} column ${col}</span>`;
-          };
-
-          if (id === 'developer-prompt') {
-            if (!this.devPromptEditor) return;
-            const cursor = this.devPromptEditor.getCursor();
-            renderAt(cursor.line + 1, cursor.ch + 1);
-            return;
-          }
-
-          if (id === 'llm-request-body') {
-            if (!this.llmRequestBodyEditor) return;
-            const cursor = this.llmRequestBodyEditor.getCursor();
-            renderAt(cursor.line + 1, cursor.ch + 1);
-            return;
-          }
-
-          const el = document.getElementById(id);
-          if (!el) return;
-
-          const val = el.value.substring(0, el.selectionStart);
-          const lines = val.split("\n");
-          const line = lines.length;
-          const col = lines[lines.length - 1].length + 1;
-
-          renderAt(line, col);
-        },
-
-        renderTemplateVariables(id, variables) {
-          const container = document.getElementById(id + "-variables");
-          if (!container) return;
-          container.innerHTML = "";
-          variables.forEach(name => {
-            const chip = document.createElement("span");
-            chip.className = "audit-variable-item";
-            chip.textContent = name;
-            container.appendChild(chip);
-          });
-        },
-
-        auditTools() {
-          const provider = Providers.getCurrent();
-          const toolNames = provider.getToolsNames ? provider.getToolsNames() : [];
-          const promptText = this.devPromptEditor ? this.devPromptEditor.getValue() : State.request.developerMessage;
-          const lines = (promptText || "").split("\n");
-
-          const results = toolNames.map(name => {
-            const mentions = [];
-            const re = new RegExp(`\\b${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`);
-            lines.forEach((line, idx) => {
-              if (re.test(line)) mentions.push(idx + 1);
-            });
-            return { name, mentions };
-          });
-
-          this.renderToolAudit(results);
-          this.setAuditToggleState(results);
-        },
-
-        renderToolAudit(results) {
-          const container = document.getElementById("audit-tools-list");
-          if (!container) return;
-          container.innerHTML = "";
-
-          if (!results || results.length === 0) {
-            container.innerHTML = '<div class="audit-empty">No tools configured.</div>';
-            return;
-          }
-
-          results.forEach(r => {
-            const row = document.createElement("div");
-            row.style.marginBottom = "0.5rem";
-            const mentioned = r.mentions.length > 0;
-            const icon = mentioned ? STATUS_ICONS.success : STATUS_ICONS.fail;
-            const detail = mentioned
-              ? `Lines: ${r.mentions.join(", ")}`
-              : `<span style="color:#d9534f;">Not mentioned in prompt</span>`;
-            row.innerHTML = `${icon} <strong>${Utils.escapeHtml(r.name)}</strong><br><span style="font-size:0.8rem;">${detail}</span>`;
-            container.appendChild(row);
-          });
-        },
-
-        setAuditToggleState(results) {
-          const btn = document.getElementById("audit-panel-toggle");
-          if (!btn) return;
-          btn.classList.remove("audit-state-ok", "audit-state-warn", "audit-state-error");
-          if (!results || results.length === 0) {
-            btn.title = "Toggle Prompt Audit panel";
-            return;
-          }
-          const missing = results.filter(r => r.mentions.length === 0);
-          if (missing.length === 0) {
-            btn.style.borderLeft = "3px solid #198754";
-            btn.title = "All tools are mentioned in the prompt";
-          } else {
-            btn.style.borderLeft = "3px solid #d9534f";
-            btn.title = `${missing.length} tool(s) not mentioned in the prompt: ${missing.map(m => m.name).join(", ")}`;
-          }
-        },
-
-        /**
-         * =========================================
-         * LLM Audit (prompt critique via judge model)
-         * =========================================
-         */
-        async runLlmaudit() {
-          const provider = Providers.getCurrent();
-          const promptText = this.devPromptEditor ? this.devPromptEditor.getValue() : State.request.developerMessage;
-          const metaprompt = State.llmAuditMetaPrompt || CONSTANTS.DEFAULT_LLM_AUDIT_METAPROMPT;
-
-          let userContent = `<llm_prompt_to_analyze>\n${promptText}\n</llm_prompt_to_analyze>`;
-
-          const tools = provider.getTools ? provider.getTools() : null;
-          if (tools) {
-            userContent += `\n\n<llm_tools>\n${JSON.stringify(tools, null, 2)}\n</llm_tools>`;
-          }
-
-          const structOutput = provider.getStructOutput ? provider.getStructOutput() : null;
-          if (structOutput) {
-            userContent += `\n\n<llm_structured_output>\n${JSON.stringify(structOutput, null, 2)}\n</llm_structured_output>`;
-          }
-
-          const schema = {
-            type: "object",
-            properties: {
-              issues: {
-                type: "array",
-                items: {
-                  type: "object",
-                  properties: {
-                    severity: { type: "string", enum: ["Low", "Medium", "High"] },
-                    category: { type: "string", enum: ["conflict", "ambiguity", "inaccuracy", "redundancy", "gap", "other"] },
-                    problem: { type: "string" },
-                    evidence: { type: "string" },
-                    suggestion: { type: "string" }
-                  },
-                  required: ["severity", "category", "problem", "evidence", "suggestion"]
-                }
-              }
-            },
-            required: ["issues"]
-          };
-
-          this.setStatus("Running LLM Audit, may take a moment (~1min)...", "");
-          const reauditBtn = document.getElementById("llm-audit-reaudit");
-          if (reauditBtn) reauditBtn.disabled = true;
-
-          try {
-            const res = await provider.call_struct_output({
-              llm_body: { model: provider.getJudgeModel() },
-              developer: metaprompt,
-              messages: [{ role: "user", content: userContent }],
-              output_schema: schema
-            });
-
-            if (!res.success) {
-              State.llmAuditResults = [];
-              State.llmAuditRaw = res.raw;
-              this.renderLlmauditError(res);
-              this.setStatus("LLM Audit failed.", "error");
-              return;
-            }
-
-            const issues = Array.isArray(res.parsed) ? res.parsed : (res.parsed.issues || []);
-            State.llmAuditResults = issues;
-            State.llmAuditRaw = res.raw;
-            this.renderLlmaudit(issues);
-            this.setStatus("LLM Audit complete.", "success");
-          } catch (err) {
-            const msg = err.message || String(err);
-            State.llmAuditResults = [];
-            State.llmAuditRaw = msg;
-            this.renderLlmauditError({ error: msg, raw: msg });
-            this.setStatus("LLM Audit failed.", "error");
-          } finally {
-            if (reauditBtn) reauditBtn.disabled = false;
-          }
-        },
-
-        renderLlmaudit(results) {
-          const container = document.getElementById("llm-audit-results");
-          if (!container) return;
-          container.innerHTML = "";
-
-          if (!results || results.length === 0) {
-            container.innerHTML = '<div class="audit-empty">No audit results yet.</div>';
-            return;
-          }
-
-          const order = { High: 0, Medium: 1, Low: 2 };
-          const sorted = [...results].sort((a, b) => (order[a.severity] ?? 3) - (order[b.severity] ?? 3));
-          const colors = { High: "#d9534f", Medium: "#e0a800", Low: "#6c757d" };
-
-          sorted.forEach(issue => {
-            const color = colors[issue.severity] || "#6c757d";
-            const card = document.createElement("div");
-            card.style.cssText = "border:1px solid #e0e0e0; border-radius:5px; padding:0.6rem; margin-bottom:0.5rem;";
-            card.innerHTML = `
-              <div style="display:flex; align-items:center; gap:0.4rem; margin-bottom:0.3rem;">
-                <span class="status-badge" style="background:${color};">${Utils.escapeHtml(issue.severity || "")}</span>
-                <span style="font-size:0.75rem; color:#888; text-transform:uppercase;">${Utils.escapeHtml(issue.category || "")}</span>
-              </div>
-              <div style="font-weight:600; margin-bottom:0.3rem;">${Utils.escapeHtml(issue.problem || "")}</div>
-              ${issue.suggestion ? `<div style="font-size:0.85rem;">${Utils.escapeHtml(issue.suggestion)}</div>` : ""}
-              ${issue.evidence ? `<details style="margin-top:0.4rem;"><summary style="cursor:pointer; font-size:0.8rem;">Evidence</summary><div style="font-size:0.8rem; margin-top:0.3rem; white-space:pre-wrap;">${Utils.escapeHtml(issue.evidence)}</div></details>` : ""}
-            `;
-            container.appendChild(card);
-          });
-        },
-
-        renderLlmauditError(res) {
-          const container = document.getElementById("llm-audit-results");
-          if (!container) return;
-          const message = (res && (res.error || res.raw)) || "Unknown error";
-          container.innerHTML = `<div class="template-error-message" style="display:block;">${Utils.escapeHtml(message)}</div>`;
-        },
-
-        /**
-         * Turn a `[data-combobox]` wrapper (an <input>, a `.combobox-toggle`
-         * button and a <ul.combobox-list>) into a select-like suggestion
-         * dropdown. The list opens only via the toggle button (or
-         * ArrowDown) and closes as soon as the user types; the input stays
-         * freely editable.
-         */
-        setupCombobox(root) {
-          const input = root.querySelector("input");
-          const list = root.querySelector(".combobox-list");
-          const toggle = root.querySelector(".combobox-toggle");
-          if (!input || !list) return;
-          const options = Array.from(list.querySelectorAll("li"));
-          let activeIndex = -1;
-
-          function setActive(idx) {
-            activeIndex = idx;
-            options.forEach((li, i) => li.classList.toggle("active", i === idx));
-            if (idx >= 0 && options[idx]) options[idx].scrollIntoView({ block: "nearest" });
-          }
-
-          function open() {
-            list.hidden = false;
-            input.setAttribute("aria-expanded", "true");
-          }
-
-          function close() {
-            list.hidden = true;
-            input.setAttribute("aria-expanded", "false");
-            setActive(-1);
-          }
-
-          function choose(li) {
-            input.value = li.textContent;
-            close();
-            // Notify external listeners (e.g. base-URL persistence).
-            input.dispatchEvent(new Event("input", { bubbles: true }));
-            input.dispatchEvent(new Event("change", { bubbles: true }));
-          }
-
-          // Toggle button opens/closes the list, like a native <select>.
-          toggle?.addEventListener("mousedown", (e) => {
-            e.preventDefault(); // keep focus on the input
-            if (list.hidden) { open(); input.focus(); } else { close(); }
-          });
-
-          // Typing dismisses the list - the field is back to free text entry.
-          input.addEventListener("input", close);
-
-          input.addEventListener("keydown", (e) => {
-            if (e.key === "ArrowDown") {
-              e.preventDefault();
-              if (list.hidden) { open(); return; }
-              setActive(Math.min(activeIndex + 1, options.length - 1));
-            } else if (e.key === "ArrowUp") {
-              e.preventDefault();
-              if (list.hidden) return;
-              setActive(Math.max(activeIndex - 1, 0));
-            } else if (e.key === "Enter") {
-              if (!list.hidden && activeIndex >= 0 && options[activeIndex]) {
-                e.preventDefault();
-                choose(options[activeIndex]);
-              }
-            } else if (e.key === "Escape") {
-              if (!list.hidden) { e.stopPropagation(); close(); }
-            }
-          });
-
-          // mousedown (not click) + preventDefault so the input never loses focus
-          list.addEventListener("mousedown", (e) => {
-            const li = e.target.closest("li");
-            if (!li) return;
-            e.preventDefault();
-            choose(li);
-          });
-
-          input.addEventListener("blur", () => {
-            setTimeout(() => { if (!root.contains(document.activeElement)) close(); }, 100);
-          });
-          document.addEventListener("click", (e) => { if (!root.contains(e.target)) close(); });
         }
-      };
+      }; // End of TestsUI
 
       /**
        * =========================================
@@ -3928,7 +3949,7 @@
 
           // Clean out current test results and details
           State.runSummaries = [];
-          UI.renderResults();
+          TestsUI.renderResults();
           const detailsContainer = document.getElementById("details-content");
           if (detailsContainer) {
             detailsContainer.innerHTML = "Select a test run to inspect its responses.";
@@ -3978,7 +3999,7 @@
             }
           });
 
-          UI.renderTests(); // Update progress visibility via table
+          TestsUI.renderTests(); // Update progress visibility via table
 
           // Execution Queue
           const queue = [];
@@ -3991,7 +4012,7 @@
             while (queue.length) {
               const job = queue.shift();
               await this.runSingleTest(job.test, job.summaryIdx, job.runIndex, provider);
-              UI.renderTests(); // Update progress
+              TestsUI.renderTests(); // Update progress
             }
           };
 
@@ -4104,7 +4125,7 @@
             return { ...acc, [v.name]: value };
           }, {});
         }
-      };
+      }; // End of TestRunner
 
       /**
        * =========================================
@@ -4135,7 +4156,7 @@
           { role: "user", content: "{{usr_msg}}" }
         ];
         // Default Test
-        UI.addTest({
+        TestsUI.addTest({
           name: "Hello", repeat: 1,
           variables: [{ name: "usr_msg", value: "hi", type: "Text" }],
           expectedResponse: "Hello, how can I help you?"
@@ -4161,9 +4182,9 @@
         document.getElementById("gemini-base-url")?.addEventListener("change", (e) => Providers.gemini.setBaseUrl(e.target.value.trim()));
         UI.updateProviderUI(); // sets initial visibility
         UI.updateJudgeUI();
-        UI.renderGlobalVars();
-        UI.renderHeaders();
-        UI.renderMessages(); // Initial messages render
+        RequestUI.renderGlobalVars();
+        RequestUI.renderHeaders();
+        RequestUI.renderMessages(); // Initial messages render
 
         // Initialize CodeMirror on the developer-prompt-editor div
         const devPromptContainer = document.getElementById('developer-prompt-editor');
