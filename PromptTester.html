@@ -1958,6 +1958,7 @@
         DEFAULT_OPENAI_BASE_URL: "https://api.openai.com/v1",
         DEFAULT_OPENAI_JUDGE_MODEL: "gpt-5.6-terra:medium",
         DEFAULT_GEMINI_BASE_URL: "https://generativelanguage.googleapis.com/v1beta",
+        DEFAULT_GEMINI_JUDGE_MODEL: "gemini-3.8-flash",
         STORAGE_KEYS: {
           judgeEnabled: "promptTester.judgeEnabled",
           openaiBaseUrl: "promptTester.openaiBaseUrl",
@@ -2471,7 +2472,7 @@
         getModel() { return (document.getElementById("gemini-model")?.value || "").trim(); }
         setModel(val) { const el = document.getElementById("gemini-model"); if (el) el.value = val; Storage.set('geminiModel', val); }
 
-        getJudgeModel() { return (document.getElementById("gemini-judge-model")?.value || "").trim() || "gemini-2.5-pro"; }
+        getJudgeModel() { return (document.getElementById("gemini-judge-model")?.value || "").trim() || CONSTANTS.DEFAULT_GEMINI_JUDGE_MODEL; }
         setJudgeModel(val) { const el = document.getElementById("gemini-judge-model"); if (el) el.value = val; Storage.set('geminiJudgeModel', val); }
 
         getTools() {
@@ -4163,7 +4164,7 @@
         Providers.gemini.setKey(Storage.get('geminiApiKey'));
         Providers.gemini.setBaseUrl(Storage.get('geminiBaseUrl', 'string', CONSTANTS.DEFAULT_GEMINI_BASE_URL));
         Providers.gemini.setModel(Storage.get('geminiModel', 'string', 'gemini-3.6-flash'));
-        Providers.gemini.setJudgeModel(Storage.get('geminiJudgeModel', 'string', 'gemini-3.8-flash'));
+        Providers.gemini.setJudgeModel(Storage.get('geminiJudgeModel', 'string', CONSTANTS.DEFAULT_GEMINI_JUDGE_MODEL));
 
         State.judgeEnabled = Storage.get('judgeEnabled', 'boolean', true);
         State.judgePrompt = CONSTANTS.DEFAULT_JUDGE_PROMPT;
