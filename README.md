@@ -2,6 +2,8 @@
 
 PromptTester is a portable, BYOK (Bring Your Own Key), single-file HTML app for testing and evaluating LLM prompts and requests. You can think of it as Postman for LLMs.
 
+Try it online: [https://dmytronius.github.io/prompt-tester/PromptTester.html](https://dmytronius.github.io/prompt-tester/PromptTester.html)
+
 It can be useful for:
 
 * Making sure your prompt works as expected 100 out of 100 times.
